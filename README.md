@@ -13,6 +13,34 @@ python3 -m http.server 8080
 
 Depois acesse: `http://localhost:8080`
 
+## Rodando o projeto (passo a passo)
+
+### Opção 1 — Abrir direto no navegador
+
+1. Entre na pasta do projeto.
+2. Dê duplo clique no arquivo `index.html`.
+3. Faça login com:
+   - Usuário: `admin`
+   - Senha: `1234`
+
+### Opção 2 — Servidor local (recomendado)
+
+No terminal, dentro da pasta do projeto:
+
+```bash
+python3 -m http.server 8080
+```
+
+Depois abra no navegador:
+
+`http://localhost:8080`
+
+### Como parar o servidor
+
+No terminal em que o servidor estiver rodando, pressione:
+
+`Ctrl + C`
+
 ## Login padrão
 
 - Usuário: `admin`
