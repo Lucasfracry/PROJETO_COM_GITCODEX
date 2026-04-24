@@ -490,12 +490,86 @@ function closeTable(tableId) {
 function bindHistory() {
   el('close-cash').addEventListener('click', () => {
     if (!db.caixa?.aberto) return alert('Não há caixa aberto.');
+    const fechamentoEm = now().toISOString();
+    const pedidosNoPeriodo = db.vendas.filter((v) => new Date(v.data) >= new Date(db.caixa.horaAbertura) && new Date(v.data) <= new Date(fechamentoEm));
+    const resumoFechamento = {
+      dataAbertura: db.caixa.horaAbertura,
+      dataFechamento: fechamentoEm,
+      trocoInicial: db.caixa.valorInicial,
+      quantidadePedidos: pedidosNoPeriodo.length,
+      totalVendas: db.caixa.totalVendas,
+      pagamentos: structuredClone(db.caixa.pagamentos),
+      totalFechamento: db.caixa.valorInicial + db.caixa.totalVendas
+    };
     db.caixa.aberto = false;
-    db.caixa.horaFechamento = now().toISOString();
+    db.caixa.horaFechamento = fechamentoEm;
     save();
+    printCashCloseReport(resumoFechamento);
     refreshAll();
     alert('Caixa fechado. Vendas bloqueadas até nova abertura.');
   });
+}
+
+function printCashCloseReport(resumo) {
+  const content = `<!doctype html>
+  <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Fechamento de Caixa</title>
+      <style>
+        body { font-family: 'Courier New', monospace; margin: 0; color: #000; font-size: 16px; font-weight: 800; }
+        .receipt { width: 72mm; margin: 0 auto; padding: 3mm; }
+        h1, p { margin: 0; font-weight: 800; }
+        .center { text-align: center; }
+        .muted { font-size: 14px; margin-top: 2px; }
+        hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 15px; }
+        td { vertical-align: top; padding: 3px 0; }
+        .right { text-align: right; white-space: nowrap; }
+        .total { font-size: 18px; font-weight: 900; }
+        @media print { @page { size: 80mm auto; margin: 2mm; } }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <h1 class="center">FECHAMENTO DE CAIXA</h1>
+        <p class="center muted">PDV Pizzaria Pro</p>
+        <hr />
+        <p><strong>Abertura:</strong> ${new Date(resumo.dataAbertura).toLocaleString('pt-BR')}</p>
+        <p><strong>Fechamento:</strong> ${new Date(resumo.dataFechamento).toLocaleString('pt-BR')}</p>
+        <hr />
+        <table>
+          <tr><td>Troco inicial</td><td class="right">${brl(resumo.trocoInicial)}</td></tr>
+          <tr><td>Pedidos feitos</td><td class="right">${resumo.quantidadePedidos}</td></tr>
+          <tr><td>Total de vendas</td><td class="right">${brl(resumo.totalVendas)}</td></tr>
+          <tr><td>Dinheiro</td><td class="right">${brl(resumo.pagamentos.Dinheiro)}</td></tr>
+          <tr><td>Cartão</td><td class="right">${brl(resumo.pagamentos.Cartão)}</td></tr>
+          <tr><td>Pix</td><td class="right">${brl(resumo.pagamentos.Pix)}</td></tr>
+        </table>
+        <hr />
+        <table>
+          <tr><td class="total">TOTAL FECHAMENTO</td><td class="right total">${brl(resumo.totalFechamento)}</td></tr>
+        </table>
+        <hr />
+        <p class="center muted">Fechamento calculado automaticamente</p>
+      </div>
+      <script>
+        window.onload = () => {
+          window.print();
+          setTimeout(() => window.close(), 250);
+        };
+      </script>
+    </body>
+  </html>`;
+
+  const printWindow = window.open('', '_blank', 'width=420,height=640');
+  if (!printWindow) {
+    alert('Não foi possível abrir a janela de impressão do fechamento.');
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(content);
+  printWindow.document.close();
 }
 
 function renderList(id, items, formatter) {
