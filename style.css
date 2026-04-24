@@ -272,6 +272,21 @@ ul {
   justify-content: space-between;
 }
 
+#shortcut-list li {
+  justify-content: flex-start;
+  gap: .7rem;
+}
+
+#shortcut-list strong {
+  display: inline-block;
+  min-width: 160px;
+  background: rgba(79, 140, 255, 0.18);
+  border: 1px solid rgba(79, 140, 255, 0.45);
+  border-radius: 8px;
+  padding: .2rem .45rem;
+  text-align: center;
+}
+
 #pizza-list li button,
 #extra-list li button,
 #edge-list li button,

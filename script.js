@@ -21,6 +21,23 @@ const defaultData = {
 
 let db = load();
 let session = { user: null, carrinho: [] };
+const SHORTCUTS = [
+  { combo: 'F2', action: 'Abrir aba PDV (Vendas)' },
+  { combo: 'F3', action: 'Abrir aba Cadastro' },
+  { combo: 'F4', action: 'Abrir aba Mesas Abertas' },
+  { combo: 'F6', action: 'Abrir aba Tutorial' },
+  { combo: 'Alt + 1', action: 'Selecionar tipo Pizza no item' },
+  { combo: 'Alt + 2', action: 'Selecionar tipo Bebida no item' },
+  { combo: 'Alt + S', action: 'Ativar/Desativar Pizza 2 sabores' },
+  { combo: 'Alt + B', action: 'Selecionar tamanho Broto' },
+  { combo: 'Alt + G', action: 'Selecionar tamanho Grande' },
+  { combo: 'Ctrl + 1', action: 'Focar campo Tipo de item' },
+  { combo: 'Ctrl + 2', action: 'Focar campo Produto principal' },
+  { combo: 'Ctrl + 3', action: 'Focar segundo sabor (quando ativo)' },
+  { combo: 'Ctrl + 4', action: 'Focar quantidade do item' },
+  { combo: 'Ctrl + Enter', action: 'Adicionar item ao pedido' },
+  { combo: 'Ctrl + Shift + Enter', action: 'Finalizar venda' }
+];
 
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -39,6 +56,7 @@ function init() {
   bindRegister();
   bindSales();
   bindProductManagement();
+  bindShortcuts();
   bindHistory();
   fillDateTime();
   refreshAll();
@@ -46,15 +64,15 @@ function init() {
 
 function bindTabs() {
   document.querySelectorAll('.tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
-      btn.classList.add('active');
-      el(btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'history') renderHistory();
-      if (btn.dataset.tab === 'open-tables') renderOpenTables();
-    });
+    btn.addEventListener('click', () => activateTab(btn.dataset.tab));
   });
+}
+
+function activateTab(tabId) {
+  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x.dataset.tab === tabId));
+  document.querySelectorAll('.panel').forEach((x) => x.classList.toggle('active', x.id === tabId));
+  if (tabId === 'history') renderHistory();
+  if (tabId === 'open-tables') renderOpenTables();
 }
 
 function bindLogin() {
@@ -152,6 +170,34 @@ function bindProductManagement() {
       if (btn.dataset.action === 'delete') deleteRegisteredItem(listType, itemId);
       if (btn.dataset.action === 'edit') editRegisteredItem(listType, itemId);
     });
+  });
+}
+
+function bindShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F2') { e.preventDefault(); activateTab('sales'); }
+    if (e.key === 'F3') { e.preventDefault(); activateTab('register'); }
+    if (e.key === 'F4') { e.preventDefault(); activateTab('open-tables'); }
+    if (e.key === 'F6') { e.preventDefault(); activateTab('tutorial'); }
+
+    if (e.altKey && e.key === '1') { e.preventDefault(); el('product-type').value = 'pizza'; updateProductSelector(); }
+    if (e.altKey && e.key === '2') { e.preventDefault(); el('product-type').value = 'drink'; updateProductSelector(); }
+    if (e.altKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (el('product-type').value !== 'pizza') return;
+      el('two-flavors').checked = !el('two-flavors').checked;
+      updateSecondFlavorVisibility();
+    }
+    if (e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); el('pizza-order-size').value = 'broto'; }
+    if (e.altKey && e.key.toLowerCase() === 'g') { e.preventDefault(); el('pizza-order-size').value = 'grande'; }
+
+    if (e.ctrlKey && !e.shiftKey && e.key === '1') { e.preventDefault(); el('product-type').focus(); }
+    if (e.ctrlKey && !e.shiftKey && e.key === '2') { e.preventDefault(); el('product-id').focus(); }
+    if (e.ctrlKey && !e.shiftKey && e.key === '3') { e.preventDefault(); if (!el('product-id-second').classList.contains('hidden')) el('product-id-second').focus(); }
+    if (e.ctrlKey && !e.shiftKey && e.key === '4') { e.preventDefault(); el('product-qty').focus(); }
+
+    if (e.ctrlKey && !e.shiftKey && e.key === 'Enter') { e.preventDefault(); addOrderItem(); }
+    if (e.ctrlKey && e.shiftKey && e.key === 'Enter') { e.preventDefault(); el('sale-form').requestSubmit(); }
   });
 }
 
@@ -532,6 +578,10 @@ function renderRegisterLists() {
   renderList('drink-list', db.produtos.bebidas, (d) => withActions(`${d.nome} (${d.tipo}) - ${brl(d.preco)}`, 'bebidas', d.id));
 }
 
+function renderShortcutTutorial() {
+  el('shortcut-list').innerHTML = SHORTCUTS.map((s) => `<li><strong>${s.combo}</strong> — ${s.action}</li>`).join('');
+}
+
 function renderOpenTables() {
   const wrap = el('open-tables-list');
   if (!db.mesasAbertas.length) {
@@ -591,6 +641,7 @@ function refreshAll() {
   updateProductSelector();
   renderOrder();
   renderOpenTables();
+  renderShortcutTutorial();
   renderHistory();
 }
 
