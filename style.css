@@ -45,6 +45,12 @@ main {
   justify-content: space-between;
 }
 
+#sale-form .row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-items: end;
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;
@@ -85,6 +91,11 @@ button {
   padding: .7rem;
   font-size: 0.95rem;
   min-height: 42px;
+}
+
+#sale-form .row > * {
+  width: 100%;
+  min-width: 0;
 }
 
 input:focus,
