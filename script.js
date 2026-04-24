@@ -298,16 +298,17 @@ function printSaleReceipt(sale) {
       <meta charset="UTF-8" />
       <title>Comanda ${sale.id}</title>
       <style>
-        body { font-family: 'Courier New', monospace; margin: 0; color: #000; }
+        body { font-family: 'Courier New', monospace; margin: 0; color: #000; font-size: 15px; font-weight: 700; }
         .receipt { width: 72mm; margin: 0 auto; padding: 3mm; }
-        h1, p { margin: 0; }
-        .center { text-align: center; }
-        .muted { font-size: 11px; margin-top: 2px; }
+        h1, p { margin: 0; font-weight: 700; }
+        .center { text-align: center; font-weight: 800; }
+        .muted { font-size: 13px; margin-top: 2px; font-weight: 700; }
         hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        td { vertical-align: top; padding: 2px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; font-weight: 700; }
+        td { vertical-align: top; padding: 3px 0; font-weight: 700; }
+        small { font-size: 12px; font-weight: 700; }
         .right { text-align: right; white-space: nowrap; }
-        .total { font-weight: 700; font-size: 14px; }
+        .total { font-weight: 800; font-size: 16px; }
         @media print { @page { size: 80mm auto; margin: 2mm; } }
       </style>
     </head>
