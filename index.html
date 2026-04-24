@@ -37,6 +37,7 @@
           <button class="tab active" data-tab="cash-open">Abertura de Caixa</button>
           <button class="tab" data-tab="register">Cadastro</button>
           <button class="tab" data-tab="sales">PDV (Vendas)</button>
+          <button class="tab" data-tab="open-tables">Mesas Abertas</button>
           <button class="tab" data-tab="history">Histórico de Caixa</button>
         </nav>
 
@@ -65,13 +66,11 @@
           <div class="grid-2">
             <article>
               <h3>🍕 Pizzas</h3>
-              <form id="pizza-form" class="grid-form inline">
-                <input id="pizza-name" type="text" placeholder="Nome" required />
-                <select id="pizza-size" required>
-                  <option value="Broto">Broto</option>
-                  <option value="Grande">Grande</option>
-                </select>
-                <input id="pizza-price" type="number" min="0" step="0.01" placeholder="Preço" required />
+              <form id="pizza-form" class="grid-form inline pizza-register-form">
+                <input id="pizza-name" type="text" placeholder="Nome da pizza" required />
+                <input id="pizza-number" type="number" min="1" placeholder="Número da pizza" required />
+                <input id="pizza-broto-price" type="number" min="0" step="0.01" placeholder="Preço broto" required />
+                <input id="pizza-grande-price" type="number" min="0" step="0.01" placeholder="Preço grande" required />
                 <button type="submit">Adicionar</button>
               </form>
               <ul id="pizza-list"></ul>
@@ -135,6 +134,10 @@
                   <option value="drink">Bebida</option>
                 </select>
                 <select id="product-id"></select>
+                <select id="pizza-order-size">
+                  <option value="broto">Broto</option>
+                  <option value="grande">Grande</option>
+                </select>
                 <select id="sale-edge"></select>
                 <select id="sale-extra"></select>
                 <input id="product-qty" type="number" min="1" value="1" />
@@ -159,6 +162,12 @@
               <button id="cancel-order" type="button" class="secondary">Cancelar pedido</button>
             </div>
           </form>
+        </section>
+
+        <section id="open-tables" class="panel card">
+          <h2>🍽️ Mesas Abertas</h2>
+          <p class="hint">Confira os itens adicionados e feche a mesa quando o cliente finalizar.</p>
+          <div id="open-tables-list" class="tables-grid"></div>
         </section>
 
         <section id="history" class="panel card">

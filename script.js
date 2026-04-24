@@ -1,12 +1,12 @@
-const STORAGE_KEY = 'pdv_pizzaria_v1';
+const STORAGE_KEY = 'pdv_pizzaria_v2';
 
 const defaultData = {
   users: [{ username: 'admin', password: '1234', role: 'Admin' }],
   caixa: null,
   produtos: {
     pizzas: [
-      { id: crypto.randomUUID(), nome: 'Mussarela', categoria: 'Grande', preco: 45 },
-      { id: crypto.randomUUID(), nome: 'Calabresa', categoria: 'Broto', preco: 30 }
+      { id: crypto.randomUUID(), nome: 'Mussarela', numero: 1, broto: 30, grande: 45 },
+      { id: crypto.randomUUID(), nome: 'Calabresa', numero: 2, broto: 32, grande: 47 }
     ],
     adicionais: [{ id: crypto.randomUUID(), nome: 'Catupiry', preco: 5 }],
     bordas: [
@@ -15,6 +15,7 @@ const defaultData = {
     ],
     bebidas: [{ id: crypto.randomUUID(), nome: 'Coca-Cola 2L', tipo: 'Refrigerante', preco: 14 }]
   },
+  mesasAbertas: [],
   vendas: []
 };
 
@@ -50,6 +51,7 @@ function bindTabs() {
       btn.classList.add('active');
       el(btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'history') renderHistory();
+      if (btn.dataset.tab === 'open-tables') renderOpenTables();
     });
   });
 }
@@ -101,9 +103,10 @@ function bindRegister() {
   el('pizza-form').addEventListener('submit', (e) => {
     e.preventDefault();
     addItem(db.produtos.pizzas, {
-      nome: el('pizza-name').value,
-      categoria: el('pizza-size').value,
-      preco: Number(el('pizza-price').value)
+      nome: el('pizza-name').value.trim(),
+      numero: Number(el('pizza-number').value),
+      broto: Number(el('pizza-broto-price').value),
+      grande: Number(el('pizza-grande-price').value)
     });
     e.target.reset();
   });
@@ -146,10 +149,18 @@ function adjustSaleTypeFields() {
 function updateProductSelector() {
   const type = el('product-type').value;
   const source = type === 'pizza' ? db.produtos.pizzas : db.produtos.bebidas;
-  el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${p.nome} - ${brl(p.preco)}</option>`).join('');
+
+  if (type === 'pizza') {
+    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (Broto ${brl(p.broto)} | Grande ${brl(p.grande)})</option>`).join('');
+  } else {
+    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${p.nome} - ${brl(p.preco)}</option>`).join('');
+  }
+
   el('sale-edge').innerHTML = db.produtos.bordas.map((b) => `<option value="${b.id}">Borda: ${b.nome} (+${brl(b.preco)})</option>`).join('');
-  el('sale-extra').innerHTML = `<option value="">Sem adicional</option>` + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${a.nome} (+${brl(a.preco)})</option>`).join('');
+  el('sale-extra').innerHTML = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${a.nome} (+${brl(a.preco)})</option>`).join('');
   const pizzaOptions = type === 'pizza';
+  el('pizza-order-size').disabled = !pizzaOptions;
+  el('pizza-order-size').classList.toggle('hidden', !pizzaOptions);
   el('sale-edge').disabled = !pizzaOptions;
   el('sale-extra').disabled = !pizzaOptions;
 }
@@ -161,16 +172,28 @@ function addOrderItem() {
   const source = type === 'pizza' ? db.produtos.pizzas : db.produtos.bebidas;
   const product = source.find((x) => x.id === el('product-id').value);
   if (!product) return;
-  let totalUnit = Number(product.preco);
-  const item = { tipo: type, nome: product.nome, qtd: qty, base: totalUnit, borda: null, adicional: null };
+
+  let totalUnit = 0;
+  const item = { tipo: type, nome: product.nome, qtd: qty, base: 0, borda: null, adicional: null };
 
   if (type === 'pizza') {
+    const pizzaSize = el('pizza-order-size').value;
+    const pizzaBase = pizzaSize === 'broto' ? Number(product.broto) : Number(product.grande);
+    totalUnit = pizzaBase;
+    item.tamanho = pizzaSize === 'broto' ? 'Broto' : 'Grande';
+    item.base = pizzaBase;
+
     const borda = db.produtos.bordas.find((x) => x.id === el('sale-edge').value);
     const adicional = db.produtos.adicionais.find((x) => x.id === el('sale-extra').value);
     if (borda) { totalUnit += Number(borda.preco); item.borda = borda.nome; }
     if (adicional) { totalUnit += Number(adicional.preco); item.adicional = adicional.nome; }
+    item.total = totalUnit * qty;
+  } else {
+    totalUnit = Number(product.preco);
+    item.base = totalUnit;
+    item.total = totalUnit * qty;
   }
-  item.total = totalUnit * qty;
+
   session.carrinho.push(item);
   renderOrder();
 }
@@ -196,21 +219,52 @@ function finishSale(e) {
 
   const total = session.carrinho.reduce((s, i) => s + i.total, 0);
   const pagamento = el('payment-method').value;
+  const tipoVenda = el('sale-type').value;
+
+  if (tipoVenda === 'Mesa') {
+    const numeroMesa = Number(el('table-number').value);
+    let mesa = db.mesasAbertas.find((m) => m.numeroMesa === numeroMesa);
+    if (!mesa) {
+      mesa = {
+        id: crypto.randomUUID(),
+        numeroMesa,
+        cliente: el('customer-name').value || `Mesa ${numeroMesa}`,
+        abertoEm: now().toISOString(),
+        itens: [],
+        total: 0,
+        pagamento
+      };
+      db.mesasAbertas.push(mesa);
+    }
+
+    mesa.itens.push(...structuredClone(session.carrinho));
+    mesa.total += total;
+    mesa.pagamento = pagamento;
+    save();
+
+    session.carrinho = [];
+    e.target.reset();
+    adjustSaleTypeFields();
+    updateProductSelector();
+    renderOrder();
+    renderOpenTables();
+    alert(`Itens adicionados à Mesa ${numeroMesa}.`);
+    return;
+  }
+
   const sale = {
     id: crypto.randomUUID(),
     data: now().toISOString(),
-    tipoVenda: el('sale-type').value,
-    cliente: el('customer-name').value || `Mesa ${el('table-number').value}`,
+    tipoVenda,
+    cliente: el('customer-name').value,
     endereco: el('customer-address').value || '',
     telefone: el('customer-phone').value || '',
     itens: structuredClone(session.carrinho),
     pagamento,
     total
   };
-  db.vendas.push(sale);
-  db.caixa.totalVendas += total;
-  db.caixa.pagamentos[pagamento] += total;
-  save();
+
+  registerSale(sale);
 
   session.carrinho = [];
   e.target.reset();
@@ -219,6 +273,36 @@ function finishSale(e) {
   renderOrder();
   renderHistory();
   alert('Venda finalizada!');
+}
+
+function registerSale(sale) {
+  db.vendas.push(sale);
+  db.caixa.totalVendas += sale.total;
+  db.caixa.pagamentos[sale.pagamento] += sale.total;
+  save();
+}
+
+function closeTable(tableId) {
+  const table = db.mesasAbertas.find((m) => m.id === tableId);
+  if (!table) return;
+
+  const sale = {
+    id: crypto.randomUUID(),
+    data: now().toISOString(),
+    tipoVenda: 'Mesa',
+    cliente: table.cliente || `Mesa ${table.numeroMesa}`,
+    endereco: '',
+    telefone: '',
+    itens: structuredClone(table.itens),
+    pagamento: table.pagamento,
+    total: table.total
+  };
+
+  registerSale(sale);
+  db.mesasAbertas = db.mesasAbertas.filter((m) => m.id !== tableId);
+  save();
+  renderOpenTables();
+  renderHistory();
 }
 
 function bindHistory() {
@@ -237,9 +321,42 @@ function renderList(id, items, formatter) {
 }
 
 function renderOrder() {
-  renderList('order-items', session.carrinho, (x) => `${x.qtd}x ${x.nome}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''} = ${brl(x.total)}`);
+  renderList('order-items', session.carrinho, (x) => {
+    const pizzaInfo = x.tamanho ? ` (${x.tamanho})` : '';
+    return `${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''} = ${brl(x.total)}`;
+  });
   const total = session.carrinho.reduce((s, i) => s + i.total, 0);
   el('order-total').textContent = brl(total);
+}
+
+function renderOpenTables() {
+  const wrap = el('open-tables-list');
+  if (!db.mesasAbertas.length) {
+    wrap.innerHTML = '<p>Nenhuma mesa aberta no momento.</p>';
+    return;
+  }
+
+  wrap.innerHTML = db.mesasAbertas.map((mesa) => `
+    <article class="table-card">
+      <h3>Mesa ${mesa.numeroMesa}</h3>
+      <p>Cliente: ${mesa.cliente}</p>
+      <p>Aberta em: ${new Date(mesa.abertoEm).toLocaleString('pt-BR')}</p>
+      <ul>
+        ${mesa.itens.map((item) => `<li>${item.qtd}x ${item.nome}${item.tamanho ? ` (${item.tamanho})` : ''} - ${brl(item.total)}</li>`).join('')}
+      </ul>
+      <p><strong>Total: ${brl(mesa.total)}</strong></p>
+      <p>Pagamento: ${mesa.pagamento}</p>
+      <button type="button" class="danger" data-close-table="${mesa.id}">Fechar mesa</button>
+    </article>
+  `).join('');
+
+  wrap.querySelectorAll('[data-close-table]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!db.caixa?.aberto) return alert('Abra o caixa para fechar mesa.');
+      closeTable(btn.dataset.closeTable);
+      alert('Mesa fechada com sucesso!');
+    });
+  });
 }
 
 function renderHistory() {
@@ -248,6 +365,7 @@ function renderHistory() {
     el('sales-history').innerHTML = '';
     return;
   }
+
   const c = db.caixa;
   const abertoEm = new Date(c.horaAbertura).toLocaleString('pt-BR');
   const fechadoEm = c.horaFechamento ? new Date(c.horaFechamento).toLocaleString('pt-BR') : 'Em aberto';
@@ -265,13 +383,14 @@ function renderHistory() {
 function refreshAll() {
   fillDateTime();
   el('cash-status').textContent = db.caixa?.aberto ? 'Caixa aberto ✅' : 'Caixa fechado 🔒';
-  renderList('pizza-list', db.produtos.pizzas, (p) => `${p.nome} (${p.categoria}) - ${brl(p.preco)}`);
+  renderList('pizza-list', db.produtos.pizzas, (p) => `#${p.numero} ${p.nome} | Broto ${brl(p.broto)} | Grande ${brl(p.grande)}`);
   renderList('extra-list', db.produtos.adicionais, (a) => `${a.nome} - ${brl(a.preco)}`);
   renderList('edge-list', db.produtos.bordas, (b) => `${b.nome} - ${brl(b.preco)}`);
   renderList('drink-list', db.produtos.bebidas, (d) => `${d.nome} (${d.tipo}) - ${brl(d.preco)}`);
   adjustSaleTypeFields();
   updateProductSelector();
   renderOrder();
+  renderOpenTables();
   renderHistory();
 }
 
