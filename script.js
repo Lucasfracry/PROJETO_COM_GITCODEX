@@ -1,12 +1,12 @@
-const STORAGE_KEY = 'pdv_pizzaria_v1';
+const STORAGE_KEY = 'pdv_pizzaria_v2';
 
 const defaultData = {
   users: [{ username: 'admin', password: '1234', role: 'Admin' }],
   caixa: null,
   produtos: {
     pizzas: [
-      { id: crypto.randomUUID(), nome: 'Mussarela', categoria: 'Grande', preco: 45 },
-      { id: crypto.randomUUID(), nome: 'Calabresa', categoria: 'Broto', preco: 30 }
+      { id: crypto.randomUUID(), nome: 'Mussarela', numero: 1, broto: 30, grande: 45 },
+      { id: crypto.randomUUID(), nome: 'Calabresa', numero: 2, broto: 32, grande: 47 }
     ],
     adicionais: [{ id: crypto.randomUUID(), nome: 'Catupiry', preco: 5 }],
     bordas: [
@@ -15,6 +15,7 @@ const defaultData = {
     ],
     bebidas: [{ id: crypto.randomUUID(), nome: 'Coca-Cola 2L', tipo: 'Refrigerante', preco: 14 }]
   },
+  mesasAbertas: [],
   vendas: []
 };
 
@@ -37,6 +38,7 @@ function init() {
   bindCashOpen();
   bindRegister();
   bindSales();
+  bindProductManagement();
   bindHistory();
   fillDateTime();
   refreshAll();
@@ -50,6 +52,7 @@ function bindTabs() {
       btn.classList.add('active');
       el(btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'history') renderHistory();
+      if (btn.dataset.tab === 'open-tables') renderOpenTables();
     });
   });
 }
@@ -101,9 +104,10 @@ function bindRegister() {
   el('pizza-form').addEventListener('submit', (e) => {
     e.preventDefault();
     addItem(db.produtos.pizzas, {
-      nome: el('pizza-name').value,
-      categoria: el('pizza-size').value,
-      preco: Number(el('pizza-price').value)
+      nome: el('pizza-name').value.trim(),
+      numero: Number(el('pizza-number').value),
+      broto: Number(el('pizza-broto-price').value),
+      grande: Number(el('pizza-grande-price').value)
     });
     e.target.reset();
   });
@@ -131,9 +135,24 @@ function bindRegister() {
 function bindSales() {
   el('sale-type').addEventListener('change', adjustSaleTypeFields);
   el('product-type').addEventListener('change', updateProductSelector);
+  el('two-flavors').addEventListener('change', updateSecondFlavorVisibility);
   el('add-item').addEventListener('click', addOrderItem);
   el('cancel-order').addEventListener('click', () => { session.carrinho = []; renderOrder(); });
+  el('order-items').addEventListener('click', onOrderListAction);
   el('sale-form').addEventListener('submit', finishSale);
+}
+
+function bindProductManagement() {
+  ['pizza-list', 'extra-list', 'edge-list', 'drink-list'].forEach((id) => {
+    el(id).addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const listType = btn.dataset.type;
+      const itemId = btn.dataset.id;
+      if (btn.dataset.action === 'delete') deleteRegisteredItem(listType, itemId);
+      if (btn.dataset.action === 'edit') editRegisteredItem(listType, itemId);
+    });
+  });
 }
 
 function adjustSaleTypeFields() {
@@ -146,12 +165,31 @@ function adjustSaleTypeFields() {
 function updateProductSelector() {
   const type = el('product-type').value;
   const source = type === 'pizza' ? db.produtos.pizzas : db.produtos.bebidas;
-  el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${p.nome} - ${brl(p.preco)}</option>`).join('');
+
+  if (type === 'pizza') {
+    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (Broto ${brl(p.broto)} | Grande ${brl(p.grande)})</option>`).join('');
+    el('product-id-second').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (Broto ${brl(p.broto)} | Grande ${brl(p.grande)})</option>`).join('');
+  } else {
+    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${p.nome} - ${brl(p.preco)}</option>`).join('');
+    el('product-id-second').innerHTML = '';
+    el('two-flavors').checked = false;
+  }
+
   el('sale-edge').innerHTML = db.produtos.bordas.map((b) => `<option value="${b.id}">Borda: ${b.nome} (+${brl(b.preco)})</option>`).join('');
-  el('sale-extra').innerHTML = `<option value="">Sem adicional</option>` + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${a.nome} (+${brl(a.preco)})</option>`).join('');
+  el('sale-extra').innerHTML = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${a.nome} (+${brl(a.preco)})</option>`).join('');
   const pizzaOptions = type === 'pizza';
+  el('two-flavors-wrap').classList.toggle('hidden', !pizzaOptions);
+  updateSecondFlavorVisibility();
+  el('pizza-order-size').disabled = !pizzaOptions;
+  el('pizza-order-size').classList.toggle('hidden', !pizzaOptions);
   el('sale-edge').disabled = !pizzaOptions;
   el('sale-extra').disabled = !pizzaOptions;
+}
+
+function updateSecondFlavorVisibility() {
+  const isPizza = el('product-type').value === 'pizza';
+  const showSecondFlavor = isPizza && el('two-flavors').checked;
+  el('product-id-second').classList.toggle('hidden', !showSecondFlavor);
 }
 
 function addOrderItem() {
@@ -161,18 +199,56 @@ function addOrderItem() {
   const source = type === 'pizza' ? db.produtos.pizzas : db.produtos.bebidas;
   const product = source.find((x) => x.id === el('product-id').value);
   if (!product) return;
-  let totalUnit = Number(product.preco);
-  const item = { tipo: type, nome: product.nome, qtd: qty, base: totalUnit, borda: null, adicional: null };
+
+  let totalUnit = 0;
+  const item = { tipo: type, nome: product.nome, qtd: qty, base: 0, borda: null, adicional: null };
 
   if (type === 'pizza') {
+    const secondProduct = el('two-flavors').checked ? source.find((x) => x.id === el('product-id-second').value) : null;
+    if (el('two-flavors').checked && !secondProduct) return alert('Selecione o segundo sabor da pizza.');
+    const pizzaSize = el('pizza-order-size').value;
+    const firstPrice = pizzaSize === 'broto' ? Number(product.broto) : Number(product.grande);
+    const secondPrice = secondProduct ? (pizzaSize === 'broto' ? Number(secondProduct.broto) : Number(secondProduct.grande)) : 0;
+    const pizzaBase = Math.max(firstPrice, secondPrice);
+    totalUnit = pizzaBase;
+    item.tamanho = pizzaSize === 'broto' ? 'Broto' : 'Grande';
+    item.nome = secondProduct ? `${product.nome} / ${secondProduct.nome}` : product.nome;
+    item.base = pizzaBase;
+
     const borda = db.produtos.bordas.find((x) => x.id === el('sale-edge').value);
     const adicional = db.produtos.adicionais.find((x) => x.id === el('sale-extra').value);
     if (borda) { totalUnit += Number(borda.preco); item.borda = borda.nome; }
     if (adicional) { totalUnit += Number(adicional.preco); item.adicional = adicional.nome; }
+    item.total = totalUnit * qty;
+  } else {
+    totalUnit = Number(product.preco);
+    item.base = totalUnit;
+    item.total = totalUnit * qty;
   }
-  item.total = totalUnit * qty;
+
   session.carrinho.push(item);
   renderOrder();
+}
+
+function onOrderListAction(e) {
+  const btn = e.target.closest('button[data-order-action]');
+  if (!btn) return;
+  const idx = Number(btn.dataset.index);
+  if (Number.isNaN(idx)) return;
+  if (btn.dataset.orderAction === 'remove') {
+    session.carrinho.splice(idx, 1);
+    renderOrder();
+  }
+  if (btn.dataset.orderAction === 'edit') {
+    const current = session.carrinho[idx];
+    if (!current) return;
+    const nextQty = Number(prompt('Nova quantidade:', String(current.qtd)));
+    if (!nextQty || nextQty < 1) return alert('Quantidade inválida.');
+    const unitPrice = current.total / current.qtd;
+    current.qtd = nextQty;
+    current.total = unitPrice * nextQty;
+    renderOrder();
+  }
 }
 
 function validateSaleType() {
@@ -196,29 +272,164 @@ function finishSale(e) {
 
   const total = session.carrinho.reduce((s, i) => s + i.total, 0);
   const pagamento = el('payment-method').value;
+  const tipoVenda = el('sale-type').value;
+
+  if (tipoVenda === 'Mesa') {
+    const numeroMesa = Number(el('table-number').value);
+    let mesa = db.mesasAbertas.find((m) => m.numeroMesa === numeroMesa);
+    if (!mesa) {
+      mesa = {
+        id: crypto.randomUUID(),
+        numeroMesa,
+        cliente: el('customer-name').value || `Mesa ${numeroMesa}`,
+        abertoEm: now().toISOString(),
+        itens: [],
+        total: 0,
+        pagamento
+      };
+      db.mesasAbertas.push(mesa);
+    }
+
+    mesa.itens.push(...structuredClone(session.carrinho));
+    mesa.total += total;
+    mesa.pagamento = pagamento;
+    save();
+
+    session.carrinho = [];
+    e.target.reset();
+    el('two-flavors').checked = false;
+    updateSecondFlavorVisibility();
+    adjustSaleTypeFields();
+    updateProductSelector();
+    renderOrder();
+    renderOpenTables();
+    alert(`Itens adicionados à Mesa ${numeroMesa}.`);
+    return;
+  }
+
   const sale = {
     id: crypto.randomUUID(),
     data: now().toISOString(),
-    tipoVenda: el('sale-type').value,
-    cliente: el('customer-name').value || `Mesa ${el('table-number').value}`,
+    tipoVenda,
+    cliente: el('customer-name').value,
     endereco: el('customer-address').value || '',
     telefone: el('customer-phone').value || '',
     itens: structuredClone(session.carrinho),
     pagamento,
     total
   };
-  db.vendas.push(sale);
-  db.caixa.totalVendas += total;
-  db.caixa.pagamentos[pagamento] += total;
-  save();
+
+  registerSale(sale);
+  printSaleReceipt(sale);
 
   session.carrinho = [];
   e.target.reset();
+  el('two-flavors').checked = false;
+  updateSecondFlavorVisibility();
   adjustSaleTypeFields();
   updateProductSelector();
   renderOrder();
   renderHistory();
   alert('Venda finalizada!');
+}
+
+function registerSale(sale) {
+  db.vendas.push(sale);
+  db.caixa.totalVendas += sale.total;
+  db.caixa.pagamentos[sale.pagamento] += sale.total;
+  save();
+}
+
+function printSaleReceipt(sale) {
+  const lines = sale.itens.map((item) => {
+    const detail = [item.tamanho, item.borda, item.adicional].filter(Boolean).join(' | ');
+    return `<tr>
+      <td>${item.qtd}x ${item.nome}${detail ? `<br><small>${detail}</small>` : ''}</td>
+      <td class="right">${brl(item.total)}</td>
+    </tr>`;
+  }).join('');
+
+  const content = `<!doctype html>
+  <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Comanda ${sale.id}</title>
+      <style>
+        body { font-family: 'Courier New', monospace; margin: 0; color: #000; font-size: 17px; font-weight: 800; }
+        .receipt { width: 72mm; margin: 0 auto; padding: 3mm; }
+        h1, p { margin: 0; font-weight: 800; }
+        .center { text-align: center; font-weight: 900; }
+        .muted { font-size: 15px; margin-top: 2px; font-weight: 800; }
+        hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 16px; font-weight: 800; }
+        td { vertical-align: top; padding: 4px 0; font-weight: 800; }
+        small { font-size: 14px; font-weight: 800; }
+        .right { text-align: right; white-space: nowrap; }
+        .total { font-weight: 900; font-size: 18px; }
+        @media print { @page { size: 80mm auto; margin: 2mm; } }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <h1 class="center">PIZZARIA PRO</h1>
+        <p class="center muted">Comanda de venda</p>
+        <hr />
+        <p><strong>Data:</strong> ${new Date(sale.data).toLocaleString('pt-BR')}</p>
+        <p><strong>Tipo:</strong> ${sale.tipoVenda}</p>
+        <p><strong>Cliente:</strong> ${sale.cliente || '-'}</p>
+        ${sale.endereco ? `<p><strong>Endereço:</strong> ${sale.endereco}</p>` : ''}
+        ${sale.telefone ? `<p><strong>Telefone:</strong> ${sale.telefone}</p>` : ''}
+        <hr />
+        <table>${lines}</table>
+        <hr />
+        <table>
+          <tr><td>Pagamento</td><td class="right">${sale.pagamento}</td></tr>
+          <tr><td class="total">TOTAL</td><td class="right total">${brl(sale.total)}</td></tr>
+        </table>
+        <hr />
+        <p class="center muted">Obrigado pela preferência!</p>
+      </div>
+      <script>
+        window.onload = () => {
+          window.print();
+          setTimeout(() => window.close(), 250);
+        };
+      </script>
+    </body>
+  </html>`;
+
+  const printWindow = window.open('', '_blank', 'width=420,height=640');
+  if (!printWindow) {
+    alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-up.');
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(content);
+  printWindow.document.close();
+}
+
+function closeTable(tableId) {
+  const table = db.mesasAbertas.find((m) => m.id === tableId);
+  if (!table) return;
+
+  const sale = {
+    id: crypto.randomUUID(),
+    data: now().toISOString(),
+    tipoVenda: 'Mesa',
+    cliente: table.cliente || `Mesa ${table.numeroMesa}`,
+    endereco: '',
+    telefone: '',
+    itens: structuredClone(table.itens),
+    pagamento: table.pagamento,
+    total: table.total
+  };
+
+  registerSale(sale);
+  printSaleReceipt(sale);
+  db.mesasAbertas = db.mesasAbertas.filter((m) => m.id !== tableId);
+  save();
+  renderOpenTables();
+  renderHistory();
 }
 
 function bindHistory() {
@@ -237,9 +448,118 @@ function renderList(id, items, formatter) {
 }
 
 function renderOrder() {
-  renderList('order-items', session.carrinho, (x) => `${x.qtd}x ${x.nome}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''} = ${brl(x.total)}`);
+  el('order-items').innerHTML = session.carrinho.map((x, index) => {
+    const pizzaInfo = x.tamanho ? ` (${x.tamanho})` : '';
+    return `<li>
+      ${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''} = ${brl(x.total)}
+      <button type="button" data-order-action="edit" data-index="${index}">Editar</button>
+      <button type="button" class="danger" data-order-action="remove" data-index="${index}">Excluir</button>
+    </li>`;
+  }).join('') || '<li>Nenhum item.</li>';
   const total = session.carrinho.reduce((s, i) => s + i.total, 0);
   el('order-total').textContent = brl(total);
+}
+
+function getRegisterCollection(type) {
+  const map = {
+    pizzas: db.produtos.pizzas,
+    adicionais: db.produtos.adicionais,
+    bordas: db.produtos.bordas,
+    bebidas: db.produtos.bebidas
+  };
+  return map[type];
+}
+
+function deleteRegisteredItem(type, id) {
+  const list = getRegisterCollection(type);
+  if (!list) return;
+  const index = list.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  if (!confirm('Deseja excluir este item?')) return;
+  list.splice(index, 1);
+  save();
+  refreshAll();
+}
+
+function editRegisteredItem(type, id) {
+  const list = getRegisterCollection(type);
+  const item = list?.find((x) => x.id === id);
+  if (!item) return;
+
+  if (type === 'pizzas') {
+    const nome = prompt('Nome da pizza:', item.nome);
+    const numero = Number(prompt('Número da pizza:', String(item.numero)));
+    const broto = Number(prompt('Preço Broto:', String(item.broto)));
+    const grande = Number(prompt('Preço Grande:', String(item.grande)));
+    if (!nome || !numero || broto < 0 || grande < 0) return alert('Dados inválidos.');
+    item.nome = nome.trim();
+    item.numero = numero;
+    item.broto = broto;
+    item.grande = grande;
+  }
+
+  if (type === 'adicionais' || type === 'bordas') {
+    const nome = prompt('Nome:', item.nome);
+    const preco = Number(prompt('Preço:', String(item.preco)));
+    if (!nome || preco < 0) return alert('Dados inválidos.');
+    item.nome = nome.trim();
+    item.preco = preco;
+  }
+
+  if (type === 'bebidas') {
+    const nome = prompt('Nome da bebida:', item.nome);
+    const tipo = prompt('Tipo da bebida:', item.tipo);
+    const preco = Number(prompt('Preço:', String(item.preco)));
+    if (!nome || !tipo || preco < 0) return alert('Dados inválidos.');
+    item.nome = nome.trim();
+    item.tipo = tipo.trim();
+    item.preco = preco;
+  }
+
+  save();
+  refreshAll();
+}
+
+function renderRegisterLists() {
+  const withActions = (label, type, id) =>
+    `${label}
+      <button type="button" data-action="edit" data-type="${type}" data-id="${id}">Editar</button>
+      <button type="button" class="danger" data-action="delete" data-type="${type}" data-id="${id}">Excluir</button>`;
+
+  renderList('pizza-list', db.produtos.pizzas, (p) => withActions(`#${p.numero} ${p.nome} | Broto ${brl(p.broto)} | Grande ${brl(p.grande)}`, 'pizzas', p.id));
+  renderList('extra-list', db.produtos.adicionais, (a) => withActions(`${a.nome} - ${brl(a.preco)}`, 'adicionais', a.id));
+  renderList('edge-list', db.produtos.bordas, (b) => withActions(`${b.nome} - ${brl(b.preco)}`, 'bordas', b.id));
+  renderList('drink-list', db.produtos.bebidas, (d) => withActions(`${d.nome} (${d.tipo}) - ${brl(d.preco)}`, 'bebidas', d.id));
+}
+
+function renderOpenTables() {
+  const wrap = el('open-tables-list');
+  if (!db.mesasAbertas.length) {
+    wrap.innerHTML = '<p>Nenhuma mesa aberta no momento.</p>';
+    return;
+  }
+
+  wrap.innerHTML = db.mesasAbertas.map((mesa) => `
+    <article class="table-card">
+      <h3>Mesa ${mesa.numeroMesa}</h3>
+      <p>Cliente: ${mesa.cliente}</p>
+      <p>Aberta em: ${new Date(mesa.abertoEm).toLocaleString('pt-BR')}</p>
+      <ul>
+        ${mesa.itens.map((item) => `<li>${item.qtd}x ${item.nome}${item.tamanho ? ` (${item.tamanho})` : ''} - ${brl(item.total)}</li>`).join('')}
+      </ul>
+      <p><strong>Total: ${brl(mesa.total)}</strong></p>
+      <p>Pagamento: ${mesa.pagamento}</p>
+      <button type="button" class="danger" data-close-table="${mesa.id}">Fechar mesa</button>
+    </article>
+  `).join('');
+
+  wrap.querySelectorAll('[data-close-table]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!db.caixa?.aberto) return alert('Abra o caixa para fechar mesa.');
+      closeTable(btn.dataset.closeTable);
+      alert('Mesa fechada com sucesso!');
+    });
+  });
 }
 
 function renderHistory() {
@@ -248,6 +568,7 @@ function renderHistory() {
     el('sales-history').innerHTML = '';
     return;
   }
+
   const c = db.caixa;
   const abertoEm = new Date(c.horaAbertura).toLocaleString('pt-BR');
   const fechadoEm = c.horaFechamento ? new Date(c.horaFechamento).toLocaleString('pt-BR') : 'Em aberto';
@@ -265,13 +586,11 @@ function renderHistory() {
 function refreshAll() {
   fillDateTime();
   el('cash-status').textContent = db.caixa?.aberto ? 'Caixa aberto ✅' : 'Caixa fechado 🔒';
-  renderList('pizza-list', db.produtos.pizzas, (p) => `${p.nome} (${p.categoria}) - ${brl(p.preco)}`);
-  renderList('extra-list', db.produtos.adicionais, (a) => `${a.nome} - ${brl(a.preco)}`);
-  renderList('edge-list', db.produtos.bordas, (b) => `${b.nome} - ${brl(b.preco)}`);
-  renderList('drink-list', db.produtos.bebidas, (d) => `${d.nome} (${d.tipo}) - ${brl(d.preco)}`);
+  renderRegisterLists();
   adjustSaleTypeFields();
   updateProductSelector();
   renderOrder();
+  renderOpenTables();
   renderHistory();
 }
 

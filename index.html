@@ -9,7 +9,7 @@
   <body>
     <main>
       <section id="login-screen" class="card">
-        <h1>🔐 Login do Sistema</h1>
+        <h1>Login do Sistema</h1>
         <form id="login-form" class="grid-form">
           <label>
             Usuário
@@ -26,7 +26,7 @@
 
       <section id="app" class="hidden">
         <header class="app-header card">
-          <h1>🧭 PDV Pizzaria</h1>
+          <h1>PDV Pizzaria Pro</h1>
           <div>
             <span id="session-user"></span>
             <button id="logout" class="secondary">Sair</button>
@@ -37,11 +37,12 @@
           <button class="tab active" data-tab="cash-open">Abertura de Caixa</button>
           <button class="tab" data-tab="register">Cadastro</button>
           <button class="tab" data-tab="sales">PDV (Vendas)</button>
+          <button class="tab" data-tab="open-tables">Mesas Abertas</button>
           <button class="tab" data-tab="history">Histórico de Caixa</button>
         </nav>
 
         <section id="cash-open" class="panel card active">
-          <h2>💰 Abertura de Caixa</h2>
+          <h2>Abertura de Caixa</h2>
           <form id="open-cash-form" class="grid-form">
             <label>
               Valor inicial (R$)
@@ -61,23 +62,21 @@
         </section>
 
         <section id="register" class="panel card">
-          <h2>📦 Cadastro</h2>
+          <h2>Cadastro de Produtos</h2>
           <div class="grid-2">
             <article>
-              <h3>🍕 Pizzas</h3>
-              <form id="pizza-form" class="grid-form inline">
-                <input id="pizza-name" type="text" placeholder="Nome" required />
-                <select id="pizza-size" required>
-                  <option value="Broto">Broto</option>
-                  <option value="Grande">Grande</option>
-                </select>
-                <input id="pizza-price" type="number" min="0" step="0.01" placeholder="Preço" required />
+              <h3>Pizzas</h3>
+              <form id="pizza-form" class="grid-form inline pizza-register-form">
+                <input id="pizza-name" type="text" placeholder="Nome da pizza" required />
+                <input id="pizza-number" type="number" min="1" placeholder="Número da pizza" required />
+                <input id="pizza-broto-price" type="number" min="0" step="0.01" placeholder="Preço broto" required />
+                <input id="pizza-grande-price" type="number" min="0" step="0.01" placeholder="Preço grande" required />
                 <button type="submit">Adicionar</button>
               </form>
               <ul id="pizza-list"></ul>
             </article>
             <article>
-              <h3>🧀 Adicionais</h3>
+              <h3>Adicionais</h3>
               <form id="extra-form" class="grid-form inline">
                 <input id="extra-name" type="text" placeholder="Nome" required />
                 <input id="extra-price" type="number" min="0" step="0.01" placeholder="Preço" required />
@@ -86,7 +85,7 @@
               <ul id="extra-list"></ul>
             </article>
             <article>
-              <h3>🥐 Bordas</h3>
+              <h3>Bordas</h3>
               <form id="edge-form" class="grid-form inline">
                 <input id="edge-name" type="text" placeholder="Nome" required />
                 <input id="edge-price" type="number" min="0" step="0.01" placeholder="Preço" required />
@@ -95,7 +94,7 @@
               <ul id="edge-list"></ul>
             </article>
             <article>
-              <h3>🥤 Bebidas</h3>
+              <h3>Bebidas</h3>
               <form id="drink-form" class="grid-form inline">
                 <input id="drink-name" type="text" placeholder="Nome" required />
                 <select id="drink-type" required>
@@ -112,7 +111,7 @@
         </section>
 
         <section id="sales" class="panel card">
-          <h2>🛒 PDV (Vendas)</h2>
+          <h2>PDV (Vendas)</h2>
           <form id="sale-form" class="grid-form">
             <label>
               Tipo de venda
@@ -135,6 +134,15 @@
                   <option value="drink">Bebida</option>
                 </select>
                 <select id="product-id"></select>
+                <label id="two-flavors-wrap">
+                  <input id="two-flavors" type="checkbox" />
+                  Pizza 2 sabores
+                </label>
+                <select id="product-id-second" class="hidden"></select>
+                <select id="pizza-order-size">
+                  <option value="broto">Broto</option>
+                  <option value="grande">Grande</option>
+                </select>
                 <select id="sale-edge"></select>
                 <select id="sale-extra"></select>
                 <input id="product-qty" type="number" min="1" value="1" />
@@ -161,8 +169,14 @@
           </form>
         </section>
 
+        <section id="open-tables" class="panel card">
+          <h2>Mesas Abertas</h2>
+          <p class="hint">Confira os itens adicionados e feche a mesa quando o cliente finalizar.</p>
+          <div id="open-tables-list" class="tables-grid"></div>
+        </section>
+
         <section id="history" class="panel card">
-          <h2>📊 Histórico de Caixa</h2>
+          <h2>Histórico de Caixa</h2>
           <div id="history-summary"></div>
           <button id="close-cash">Fechar Caixa</button>
           <ul id="sales-history"></ul>
