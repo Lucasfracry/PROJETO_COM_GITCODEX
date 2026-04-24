@@ -38,6 +38,7 @@ function init() {
   bindCashOpen();
   bindRegister();
   bindSales();
+  bindProductManagement();
   bindHistory();
   fillDateTime();
   refreshAll();
@@ -136,7 +137,21 @@ function bindSales() {
   el('product-type').addEventListener('change', updateProductSelector);
   el('add-item').addEventListener('click', addOrderItem);
   el('cancel-order').addEventListener('click', () => { session.carrinho = []; renderOrder(); });
+  el('order-items').addEventListener('click', onOrderListAction);
   el('sale-form').addEventListener('submit', finishSale);
+}
+
+function bindProductManagement() {
+  ['pizza-list', 'extra-list', 'edge-list', 'drink-list'].forEach((id) => {
+    el(id).addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const listType = btn.dataset.type;
+      const itemId = btn.dataset.id;
+      if (btn.dataset.action === 'delete') deleteRegisteredItem(listType, itemId);
+      if (btn.dataset.action === 'edit') editRegisteredItem(listType, itemId);
+    });
+  });
 }
 
 function adjustSaleTypeFields() {
@@ -196,6 +211,27 @@ function addOrderItem() {
 
   session.carrinho.push(item);
   renderOrder();
+}
+
+function onOrderListAction(e) {
+  const btn = e.target.closest('button[data-order-action]');
+  if (!btn) return;
+  const idx = Number(btn.dataset.index);
+  if (Number.isNaN(idx)) return;
+  if (btn.dataset.orderAction === 'remove') {
+    session.carrinho.splice(idx, 1);
+    renderOrder();
+  }
+  if (btn.dataset.orderAction === 'edit') {
+    const current = session.carrinho[idx];
+    if (!current) return;
+    const nextQty = Number(prompt('Nova quantidade:', String(current.qtd)));
+    if (!nextQty || nextQty < 1) return alert('Quantidade inválida.');
+    const unitPrice = current.total / current.qtd;
+    current.qtd = nextQty;
+    current.total = unitPrice * nextQty;
+    renderOrder();
+  }
 }
 
 function validateSaleType() {
@@ -391,12 +427,88 @@ function renderList(id, items, formatter) {
 }
 
 function renderOrder() {
-  renderList('order-items', session.carrinho, (x) => {
+  el('order-items').innerHTML = session.carrinho.map((x, index) => {
     const pizzaInfo = x.tamanho ? ` (${x.tamanho})` : '';
-    return `${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''} = ${brl(x.total)}`;
-  });
+    return `<li>
+      ${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''} = ${brl(x.total)}
+      <button type="button" data-order-action="edit" data-index="${index}">Editar</button>
+      <button type="button" class="danger" data-order-action="remove" data-index="${index}">Excluir</button>
+    </li>`;
+  }).join('') || '<li>Nenhum item.</li>';
   const total = session.carrinho.reduce((s, i) => s + i.total, 0);
   el('order-total').textContent = brl(total);
+}
+
+function getRegisterCollection(type) {
+  const map = {
+    pizzas: db.produtos.pizzas,
+    adicionais: db.produtos.adicionais,
+    bordas: db.produtos.bordas,
+    bebidas: db.produtos.bebidas
+  };
+  return map[type];
+}
+
+function deleteRegisteredItem(type, id) {
+  const list = getRegisterCollection(type);
+  if (!list) return;
+  const index = list.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  if (!confirm('Deseja excluir este item?')) return;
+  list.splice(index, 1);
+  save();
+  refreshAll();
+}
+
+function editRegisteredItem(type, id) {
+  const list = getRegisterCollection(type);
+  const item = list?.find((x) => x.id === id);
+  if (!item) return;
+
+  if (type === 'pizzas') {
+    const nome = prompt('Nome da pizza:', item.nome);
+    const numero = Number(prompt('Número da pizza:', String(item.numero)));
+    const broto = Number(prompt('Preço Broto:', String(item.broto)));
+    const grande = Number(prompt('Preço Grande:', String(item.grande)));
+    if (!nome || !numero || broto < 0 || grande < 0) return alert('Dados inválidos.');
+    item.nome = nome.trim();
+    item.numero = numero;
+    item.broto = broto;
+    item.grande = grande;
+  }
+
+  if (type === 'adicionais' || type === 'bordas') {
+    const nome = prompt('Nome:', item.nome);
+    const preco = Number(prompt('Preço:', String(item.preco)));
+    if (!nome || preco < 0) return alert('Dados inválidos.');
+    item.nome = nome.trim();
+    item.preco = preco;
+  }
+
+  if (type === 'bebidas') {
+    const nome = prompt('Nome da bebida:', item.nome);
+    const tipo = prompt('Tipo da bebida:', item.tipo);
+    const preco = Number(prompt('Preço:', String(item.preco)));
+    if (!nome || !tipo || preco < 0) return alert('Dados inválidos.');
+    item.nome = nome.trim();
+    item.tipo = tipo.trim();
+    item.preco = preco;
+  }
+
+  save();
+  refreshAll();
+}
+
+function renderRegisterLists() {
+  const withActions = (label, type, id) =>
+    `${label}
+      <button type="button" data-action="edit" data-type="${type}" data-id="${id}">Editar</button>
+      <button type="button" class="danger" data-action="delete" data-type="${type}" data-id="${id}">Excluir</button>`;
+
+  renderList('pizza-list', db.produtos.pizzas, (p) => withActions(`#${p.numero} ${p.nome} | Broto ${brl(p.broto)} | Grande ${brl(p.grande)}`, 'pizzas', p.id));
+  renderList('extra-list', db.produtos.adicionais, (a) => withActions(`${a.nome} - ${brl(a.preco)}`, 'adicionais', a.id));
+  renderList('edge-list', db.produtos.bordas, (b) => withActions(`${b.nome} - ${brl(b.preco)}`, 'bordas', b.id));
+  renderList('drink-list', db.produtos.bebidas, (d) => withActions(`${d.nome} (${d.tipo}) - ${brl(d.preco)}`, 'bebidas', d.id));
 }
 
 function renderOpenTables() {
@@ -453,10 +565,7 @@ function renderHistory() {
 function refreshAll() {
   fillDateTime();
   el('cash-status').textContent = db.caixa?.aberto ? 'Caixa aberto ✅' : 'Caixa fechado 🔒';
-  renderList('pizza-list', db.produtos.pizzas, (p) => `#${p.numero} ${p.nome} | Broto ${brl(p.broto)} | Grande ${brl(p.grande)}`);
-  renderList('extra-list', db.produtos.adicionais, (a) => `${a.nome} - ${brl(a.preco)}`);
-  renderList('edge-list', db.produtos.bordas, (b) => `${b.nome} - ${brl(b.preco)}`);
-  renderList('drink-list', db.produtos.bebidas, (d) => `${d.nome} (${d.tipo}) - ${brl(d.preco)}`);
+  renderRegisterLists();
   adjustSaleTypeFields();
   updateProductSelector();
   renderOrder();

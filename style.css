@@ -216,6 +216,28 @@ ul {
   background: rgba(14, 17, 22, .38);
 }
 
+#pizza-list li,
+#extra-list li,
+#edge-list li,
+#drink-list li,
+#order-items li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#pizza-list li button,
+#extra-list li button,
+#edge-list li button,
+#drink-list li button,
+#order-items li button {
+  min-height: 34px;
+  padding: .35rem .55rem;
+  font-size: .9rem;
+}
+
 .hint {
   color: var(--text-muted);
   opacity: .95;
