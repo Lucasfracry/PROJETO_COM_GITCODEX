@@ -22,21 +22,21 @@ const defaultData = {
 let db = load();
 let session = { user: null, carrinho: [] };
 const SHORTCUTS = [
-  { combo: 'F2', action: 'Abrir aba PDV (Vendas)' },
-  { combo: 'F3', action: 'Abrir aba Cadastro' },
-  { combo: 'F4', action: 'Abrir aba Mesas Abertas' },
-  { combo: 'F6', action: 'Abrir aba Tutorial' },
-  { combo: 'Alt + 1', action: 'Selecionar tipo Pizza no item' },
-  { combo: 'Alt + 2', action: 'Selecionar tipo Bebida no item' },
-  { combo: 'Alt + S', action: 'Ativar/Desativar Pizza 2 sabores' },
-  { combo: 'Alt + B', action: 'Selecionar tamanho Broto' },
-  { combo: 'Alt + G', action: 'Selecionar tamanho Grande' },
-  { combo: 'Ctrl + 1', action: 'Focar campo Tipo de item' },
-  { combo: 'Ctrl + 2', action: 'Focar campo Produto principal' },
-  { combo: 'Ctrl + 3', action: 'Focar segundo sabor (quando ativo)' },
-  { combo: 'Ctrl + 4', action: 'Focar quantidade do item' },
-  { combo: 'Ctrl + Enter', action: 'Adicionar item ao pedido' },
-  { combo: 'Ctrl + Shift + Enter', action: 'Finalizar venda' }
+  { combo: 'F2', action: 'Abrir aba PDV (Vendas)', detail: 'Leva direto para a tela principal de vendas.' },
+  { combo: 'F3', action: 'Abrir aba Cadastro', detail: 'Acesso rápido para cadastrar pizzas, bordas, adicionais e bebidas.' },
+  { combo: 'F4', action: 'Abrir aba Mesas Abertas', detail: 'Mostra todas as mesas com pedidos em aberto.' },
+  { combo: 'F6', action: 'Abrir aba Tutorial', detail: 'Exibe esta tela com explicação completa dos atalhos.' },
+  { combo: 'Alt + 1', action: 'Selecionar tipo Pizza no item', detail: 'No bloco “Itens do pedido”, define o produto como pizza.' },
+  { combo: 'Alt + 2', action: 'Selecionar tipo Bebida no item', detail: 'No bloco “Itens do pedido”, altera o tipo para bebida.' },
+  { combo: 'Alt + S', action: 'Ativar/Desativar Pizza 2 sabores', detail: 'Liga ou desliga a opção meio a meio na pizza atual.' },
+  { combo: 'Alt + B', action: 'Selecionar tamanho Broto', detail: 'Define tamanho Broto para cálculo de preço.' },
+  { combo: 'Alt + G', action: 'Selecionar tamanho Grande', detail: 'Define tamanho Grande para cálculo de preço.' },
+  { combo: 'Ctrl + 1', action: 'Focar campo Tipo de item', detail: 'Posiciona o cursor no seletor Pizza/Bebida.' },
+  { combo: 'Ctrl + 2', action: 'Focar campo Produto principal', detail: 'Foca no seletor do sabor/produto principal.' },
+  { combo: 'Ctrl + 3', action: 'Focar segundo sabor', detail: 'Foca no segundo sabor quando pizza 2 sabores estiver ativa.' },
+  { combo: 'Ctrl + 4', action: 'Focar quantidade do item', detail: 'Foca no campo de quantidade para digitação rápida.' },
+  { combo: 'Ctrl + Enter', action: 'Adicionar item ao pedido', detail: 'Adiciona o item selecionado sem clicar no botão.' },
+  { combo: 'Ctrl + Shift + Enter', action: 'Finalizar venda', detail: 'Envia o formulário de venda e fecha o pedido atual.' }
 ];
 
 function load() {
@@ -579,7 +579,13 @@ function renderRegisterLists() {
 }
 
 function renderShortcutTutorial() {
-  el('shortcut-list').innerHTML = SHORTCUTS.map((s) => `<li><strong>${s.combo}</strong> — ${s.action}</li>`).join('');
+  el('shortcut-list').innerHTML = SHORTCUTS.map((s) => `
+    <li class="shortcut-item">
+      <strong>${s.combo}</strong>
+      <span>${s.action}</span>
+      <small>${s.detail}</small>
+    </li>
+  `).join('');
 }
 
 function renderOpenTables() {
