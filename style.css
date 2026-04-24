@@ -13,6 +13,7 @@
   --success: #1bb980;
   --danger: #e05757;
   --shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  font-size: 18px;
 }
 
 * {
@@ -40,6 +41,7 @@ h2,
 h3 {
   margin-top: 0;
   letter-spacing: 0.2px;
+  font-weight: 800;
 }
 
 .card {
@@ -63,7 +65,8 @@ h3 {
 
 .app-header h1 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.45rem;
+  font-weight: 800;
 }
 
 .app-header > div {
@@ -74,7 +77,8 @@ h3 {
 
 #session-user {
   color: var(--text-muted);
-  font-size: .9rem;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 #cash-status {
@@ -96,7 +100,8 @@ h3 {
   color: var(--text-muted);
   border: 1px solid var(--outline);
   border-radius: 12px;
-  font-weight: 600;
+  font-weight: 800;
+  font-size: 0.98rem;
 }
 
 .tab.active {
@@ -119,7 +124,7 @@ h3 {
   padding: .8rem;
 }
 
-label { display: grid; gap: .25rem; color: var(--text-muted); font-size: .92rem; }
+label { display: grid; gap: .25rem; color: var(--text-muted); font-size: 1rem; font-weight: 700; }
 
 fieldset {
   border-radius: 12px;
@@ -128,7 +133,7 @@ fieldset {
   padding: .7rem;
 }
 
-legend { padding: 0 .4rem; color: var(--text-muted); }
+legend { padding: 0 .4rem; color: var(--text-muted); font-weight: 700; font-size: 1rem; }
 
 input,
 select,
@@ -136,8 +141,9 @@ button {
   border: 1px solid var(--outline);
   border-radius: 10px;
   padding: .68rem;
-  font-size: 0.93rem;
+  font-size: 1rem;
   min-height: 42px;
+  font-weight: 700;
 }
 
 input,
@@ -168,7 +174,8 @@ button {
   color: #fff;
   cursor: pointer;
   border: 0;
-  font-weight: 600;
+  font-weight: 800;
+  font-size: 1rem;
 }
 
 button:hover { filter: brightness(1.08); }
@@ -178,6 +185,8 @@ button.danger { background: linear-gradient(180deg, #f06f6f 0%, var(--danger) 10
 ul {
   padding-left: 1.2rem;
   color: #d4def1;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 #order-items li,
@@ -191,6 +200,8 @@ ul {
 .hint {
   color: var(--text-muted);
   opacity: .95;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .tables-grid {
