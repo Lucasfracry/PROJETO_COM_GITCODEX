@@ -196,13 +196,34 @@ select {
 
 #sale-form .row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   align-items: end;
+  gap: .55rem;
 }
 
 #sale-form .row > * {
-  width: 100%;
   min-width: 0;
+}
+
+#sale-form .row select,
+#sale-form .row input {
+  width: 100%;
+}
+
+#sale-form #add-item {
+  min-width: 150px;
+}
+
+#sale-form {
+  max-width: 1080px;
+  margin: 0 auto;
+  gap: .8rem;
+}
+
+.sale-customer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: .7rem;
 }
 
 input:focus,
