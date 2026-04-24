@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDV Pizzaria Local</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <section id="login-screen" class="card">
+        <h1>🔐 Login do Sistema</h1>
+        <form id="login-form" class="grid-form">
+          <label>
+            Usuário
+            <input id="login-user" type="text" required />
+          </label>
+          <label>
+            Senha
+            <input id="login-pass" type="password" required />
+          </label>
+          <button type="submit">Entrar</button>
+        </form>
+        <p class="hint">Usuário padrão: <strong>admin</strong> | Senha: <strong>1234</strong></p>
+      </section>
+
+      <section id="app" class="hidden">
+        <header class="app-header card">
+          <h1>🧭 PDV Pizzaria</h1>
+          <div>
+            <span id="session-user"></span>
+            <button id="logout" class="secondary">Sair</button>
+          </div>
+        </header>
+
+        <nav class="tabs card">
+          <button class="tab active" data-tab="cash-open">Abertura de Caixa</button>
+          <button class="tab" data-tab="register">Cadastro</button>
+          <button class="tab" data-tab="sales">PDV (Vendas)</button>
+          <button class="tab" data-tab="history">Histórico de Caixa</button>
+        </nav>
+
+        <section id="cash-open" class="panel card active">
+          <h2>💰 Abertura de Caixa</h2>
+          <form id="open-cash-form" class="grid-form">
+            <label>
+              Valor inicial (R$)
+              <input id="initial-amount" type="number" min="0" step="0.01" required />
+            </label>
+            <label>
+              Data
+              <input id="open-date" type="text" readonly />
+            </label>
+            <label>
+              Hora
+              <input id="open-time" type="text" readonly />
+            </label>
+            <button type="submit">Abrir Caixa</button>
+          </form>
+          <p id="cash-status"></p>
+        </section>
+
+        <section id="register" class="panel card">
+          <h2>📦 Cadastro</h2>
+          <div class="grid-2">
+            <article>
+              <h3>🍕 Pizzas</h3>
+              <form id="pizza-form" class="grid-form inline">
+                <input id="pizza-name" type="text" placeholder="Nome" required />
+                <select id="pizza-size" required>
+                  <option value="Broto">Broto</option>
+                  <option value="Grande">Grande</option>
+                </select>
+                <input id="pizza-price" type="number" min="0" step="0.01" placeholder="Preço" required />
+                <button type="submit">Adicionar</button>
+              </form>
+              <ul id="pizza-list"></ul>
+            </article>
+            <article>
+              <h3>🧀 Adicionais</h3>
+              <form id="extra-form" class="grid-form inline">
+                <input id="extra-name" type="text" placeholder="Nome" required />
+                <input id="extra-price" type="number" min="0" step="0.01" placeholder="Preço" required />
+                <button type="submit">Adicionar</button>
+              </form>
+              <ul id="extra-list"></ul>
+            </article>
+            <article>
+              <h3>🥐 Bordas</h3>
+              <form id="edge-form" class="grid-form inline">
+                <input id="edge-name" type="text" placeholder="Nome" required />
+                <input id="edge-price" type="number" min="0" step="0.01" placeholder="Preço" required />
+                <button type="submit">Adicionar</button>
+              </form>
+              <ul id="edge-list"></ul>
+            </article>
+            <article>
+              <h3>🥤 Bebidas</h3>
+              <form id="drink-form" class="grid-form inline">
+                <input id="drink-name" type="text" placeholder="Nome" required />
+                <select id="drink-type" required>
+                  <option value="Refrigerante">Refrigerante</option>
+                  <option value="Vinho">Vinho</option>
+                  <option value="Cerveja">Cerveja</option>
+                </select>
+                <input id="drink-price" type="number" min="0" step="0.01" placeholder="Preço" required />
+                <button type="submit">Adicionar</button>
+              </form>
+              <ul id="drink-list"></ul>
+            </article>
+          </div>
+        </section>
+
+        <section id="sales" class="panel card">
+          <h2>🛒 PDV (Vendas)</h2>
+          <form id="sale-form" class="grid-form">
+            <label>
+              Tipo de venda
+              <select id="sale-type" required>
+                <option value="Delivery">Delivery</option>
+                <option value="Balcão">Balcão</option>
+                <option value="Mesa">Mesa</option>
+              </select>
+            </label>
+            <label id="customer-name-wrap">Nome do cliente <input id="customer-name" type="text" /></label>
+            <label id="address-wrap">Endereço <input id="customer-address" type="text" /></label>
+            <label id="phone-wrap">Telefone <input id="customer-phone" type="text" /></label>
+            <label id="table-wrap" class="hidden">Número da mesa <input id="table-number" type="number" min="1" /></label>
+
+            <fieldset>
+              <legend>Itens do pedido</legend>
+              <div class="row">
+                <select id="product-type">
+                  <option value="pizza">Pizza</option>
+                  <option value="drink">Bebida</option>
+                </select>
+                <select id="product-id"></select>
+                <select id="sale-edge"></select>
+                <select id="sale-extra"></select>
+                <input id="product-qty" type="number" min="1" value="1" />
+                <button id="add-item" type="button">Adicionar Item</button>
+              </div>
+            </fieldset>
+
+            <ul id="order-items"></ul>
+
+            <label>
+              Forma de pagamento
+              <select id="payment-method" required>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Cartão">Cartão</option>
+                <option value="Pix">Pix</option>
+              </select>
+            </label>
+
+            <p>Total: <strong id="order-total">R$ 0,00</strong></p>
+            <div class="row">
+              <button type="submit">Finalizar venda</button>
+              <button id="cancel-order" type="button" class="secondary">Cancelar pedido</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="history" class="panel card">
+          <h2>📊 Histórico de Caixa</h2>
+          <div id="history-summary"></div>
+          <button id="close-cash">Fechar Caixa</button>
+          <ul id="sales-history"></ul>
+        </section>
+      </section>
+    </main>
+    <script src="script.js"></script>
+  </body>
+</html>
