@@ -46,6 +46,12 @@ function load() {
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 function brl(v) { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function now() { return new Date(); }
+function getPizzaPrice(pizza, size) {
+  const sizeValue = Number(pizza?.[size]);
+  if (Number.isFinite(sizeValue) && sizeValue >= 0) return sizeValue;
+  const legacyPrice = Number(pizza?.preco);
+  return Number.isFinite(legacyPrice) ? legacyPrice : 0;
+}
 
 const el = (id) => document.getElementById(id);
 
@@ -153,6 +159,7 @@ function bindRegister() {
 function bindSales() {
   el('sale-type').addEventListener('change', adjustSaleTypeFields);
   el('product-type').addEventListener('change', updateProductSelector);
+  el('pizza-order-size').addEventListener('change', updateProductSelector);
   el('two-flavors').addEventListener('change', updateSecondFlavorVisibility);
   el('add-item').addEventListener('click', addOrderItem);
   el('cancel-order').addEventListener('click', () => { session.carrinho = []; renderOrder(); });
@@ -211,10 +218,12 @@ function adjustSaleTypeFields() {
 function updateProductSelector() {
   const type = el('product-type').value;
   const source = type === 'pizza' ? db.produtos.pizzas : db.produtos.bebidas;
+  const selectedSize = el('pizza-order-size').value;
 
   if (type === 'pizza') {
-    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (Broto ${brl(p.broto)} | Grande ${brl(p.grande)})</option>`).join('');
-    el('product-id-second').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (Broto ${brl(p.broto)} | Grande ${brl(p.grande)})</option>`).join('');
+    const labelSize = selectedSize === 'broto' ? 'Broto' : 'Grande';
+    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (${labelSize} ${brl(getPizzaPrice(p, selectedSize))})</option>`).join('');
+    el('product-id-second').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (${labelSize} ${brl(getPizzaPrice(p, selectedSize))})</option>`).join('');
   } else {
     el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${p.nome} - ${brl(p.preco)}</option>`).join('');
     el('product-id-second').innerHTML = '';
@@ -253,8 +262,8 @@ function addOrderItem() {
     const secondProduct = el('two-flavors').checked ? source.find((x) => x.id === el('product-id-second').value) : null;
     if (el('two-flavors').checked && !secondProduct) return alert('Selecione o segundo sabor da pizza.');
     const pizzaSize = el('pizza-order-size').value;
-    const firstPrice = pizzaSize === 'broto' ? Number(product.broto) : Number(product.grande);
-    const secondPrice = secondProduct ? (pizzaSize === 'broto' ? Number(secondProduct.broto) : Number(secondProduct.grande)) : 0;
+    const firstPrice = getPizzaPrice(product, pizzaSize);
+    const secondPrice = secondProduct ? getPizzaPrice(secondProduct, pizzaSize) : 0;
     const pizzaBase = Math.max(firstPrice, secondPrice);
     totalUnit = pizzaBase;
     item.tamanho = pizzaSize === 'broto' ? 'Broto' : 'Grande';
@@ -572,7 +581,7 @@ function renderRegisterLists() {
       <button type="button" data-action="edit" data-type="${type}" data-id="${id}">Editar</button>
       <button type="button" class="danger" data-action="delete" data-type="${type}" data-id="${id}">Excluir</button>`;
 
-  renderList('pizza-list', db.produtos.pizzas, (p) => withActions(`#${p.numero} ${p.nome} | Broto ${brl(p.broto)} | Grande ${brl(p.grande)}`, 'pizzas', p.id));
+  renderList('pizza-list', db.produtos.pizzas, (p) => withActions(`#${p.numero} ${p.nome} | Broto ${brl(getPizzaPrice(p, 'broto'))} | Grande ${brl(getPizzaPrice(p, 'grande'))}`, 'pizzas', p.id));
   renderList('extra-list', db.produtos.adicionais, (a) => withActions(`${a.nome} - ${brl(a.preco)}`, 'adicionais', a.id));
   renderList('edge-list', db.produtos.bordas, (b) => withActions(`${b.nome} - ${brl(b.preco)}`, 'bordas', b.id));
   renderList('drink-list', db.produtos.bebidas, (d) => withActions(`${d.nome} (${d.tipo}) - ${brl(d.preco)}`, 'bebidas', d.id));
