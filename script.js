@@ -265,6 +265,7 @@ function finishSale(e) {
   };
 
   registerSale(sale);
+  printSaleReceipt(sale);
 
   session.carrinho = [];
   e.target.reset();
@@ -280,6 +281,73 @@ function registerSale(sale) {
   db.caixa.totalVendas += sale.total;
   db.caixa.pagamentos[sale.pagamento] += sale.total;
   save();
+}
+
+function printSaleReceipt(sale) {
+  const lines = sale.itens.map((item) => {
+    const detail = [item.tamanho, item.borda, item.adicional].filter(Boolean).join(' | ');
+    return `<tr>
+      <td>${item.qtd}x ${item.nome}${detail ? `<br><small>${detail}</small>` : ''}</td>
+      <td class="right">${brl(item.total)}</td>
+    </tr>`;
+  }).join('');
+
+  const content = `<!doctype html>
+  <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Comanda ${sale.id}</title>
+      <style>
+        body { font-family: 'Courier New', monospace; margin: 0; color: #000; }
+        .receipt { width: 72mm; margin: 0 auto; padding: 3mm; }
+        h1, p { margin: 0; }
+        .center { text-align: center; }
+        .muted { font-size: 11px; margin-top: 2px; }
+        hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        td { vertical-align: top; padding: 2px 0; }
+        .right { text-align: right; white-space: nowrap; }
+        .total { font-weight: 700; font-size: 14px; }
+        @media print { @page { size: 80mm auto; margin: 2mm; } }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <h1 class="center">PIZZARIA PRO</h1>
+        <p class="center muted">Comanda de venda</p>
+        <hr />
+        <p><strong>Data:</strong> ${new Date(sale.data).toLocaleString('pt-BR')}</p>
+        <p><strong>Tipo:</strong> ${sale.tipoVenda}</p>
+        <p><strong>Cliente:</strong> ${sale.cliente || '-'}</p>
+        ${sale.endereco ? `<p><strong>Endereço:</strong> ${sale.endereco}</p>` : ''}
+        ${sale.telefone ? `<p><strong>Telefone:</strong> ${sale.telefone}</p>` : ''}
+        <hr />
+        <table>${lines}</table>
+        <hr />
+        <table>
+          <tr><td>Pagamento</td><td class="right">${sale.pagamento}</td></tr>
+          <tr><td class="total">TOTAL</td><td class="right total">${brl(sale.total)}</td></tr>
+        </table>
+        <hr />
+        <p class="center muted">Obrigado pela preferência!</p>
+      </div>
+      <script>
+        window.onload = () => {
+          window.print();
+          setTimeout(() => window.close(), 250);
+        };
+      </script>
+    </body>
+  </html>`;
+
+  const printWindow = window.open('', '_blank', 'width=420,height=640');
+  if (!printWindow) {
+    alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-up.');
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(content);
+  printWindow.document.close();
 }
 
 function closeTable(tableId) {
@@ -299,6 +367,7 @@ function closeTable(tableId) {
   };
 
   registerSale(sale);
+  printSaleReceipt(sale);
   db.mesasAbertas = db.mesasAbertas.filter((m) => m.id !== tableId);
   save();
   renderOpenTables();
