@@ -22,6 +22,7 @@ const defaultData = {
 let db = load();
 let session = { user: null, carrinho: [] };
 let sqliteEnginePromise = null;
+const halfFlavorState = { configured: false, sabor1: '', sabor2: '', tamanho: 'broto', bordaId: '', obs: '' };
 const SHORTCUTS = [
   { combo: 'F2', action: 'Abrir aba PDV (Vendas)', detail: 'Leva direto para a tela principal de vendas.' },
   { combo: 'F3', action: 'Abrir aba Cadastro', detail: 'Acesso rápido para cadastrar pizzas, bordas, adicionais e bebidas.' },
@@ -66,6 +67,7 @@ function init() {
   bindShortcuts();
   bindHistory();
   bindSqliteImport();
+  bindHalfFlavorModal();
   fillDateTime();
   refreshAll();
 }
@@ -334,7 +336,7 @@ function bindSales() {
   el('sale-type').addEventListener('change', adjustSaleTypeFields);
   el('product-type').addEventListener('change', updateProductSelector);
   el('pizza-order-size').addEventListener('change', updateProductSelector);
-  el('two-flavors').addEventListener('change', updateSecondFlavorVisibility);
+  el('two-flavors').addEventListener('change', handleTwoFlavorsToggle);
   el('add-item').addEventListener('click', addOrderItem);
   el('cancel-order').addEventListener('click', () => { session.carrinho = []; renderOrder(); });
   el('order-items').addEventListener('click', onOrderListAction);
@@ -367,14 +369,17 @@ function bindShortcuts() {
       e.preventDefault();
       if (el('product-type').value !== 'pizza') return;
       el('two-flavors').checked = !el('two-flavors').checked;
-      updateSecondFlavorVisibility();
+      handleTwoFlavorsToggle();
     }
     if (e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); el('pizza-order-size').value = 'broto'; }
     if (e.altKey && e.key.toLowerCase() === 'g') { e.preventDefault(); el('pizza-order-size').value = 'grande'; }
 
     if (e.ctrlKey && !e.shiftKey && e.key === '1') { e.preventDefault(); el('product-type').focus(); }
     if (e.ctrlKey && !e.shiftKey && e.key === '2') { e.preventDefault(); el('product-id').focus(); }
-    if (e.ctrlKey && !e.shiftKey && e.key === '3') { e.preventDefault(); if (!el('product-id-second').classList.contains('hidden')) el('product-id-second').focus(); }
+    if (e.ctrlKey && !e.shiftKey && e.key === '3') {
+      e.preventDefault();
+      if (!el('half-flavor-modal').classList.contains('hidden')) el('half-flavor-two').focus();
+    }
     if (e.ctrlKey && !e.shiftKey && e.key === '4') { e.preventDefault(); el('product-qty').focus(); }
 
     if (e.ctrlKey && !e.shiftKey && e.key === 'Enter') { e.preventDefault(); addOrderItem(); }
@@ -397,28 +402,96 @@ function updateProductSelector() {
   if (type === 'pizza') {
     const labelSize = selectedSize === 'broto' ? 'Broto' : 'Grande';
     el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (${labelSize} ${brl(getPizzaPrice(p, selectedSize))})</option>`).join('');
-    el('product-id-second').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (${labelSize} ${brl(getPizzaPrice(p, selectedSize))})</option>`).join('');
   } else {
     el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${p.nome} - ${brl(p.preco)}</option>`).join('');
-    el('product-id-second').innerHTML = '';
     el('two-flavors').checked = false;
+    halfFlavorState.configured = false;
   }
 
   el('sale-edge').innerHTML = db.produtos.bordas.map((b) => `<option value="${b.id}">Borda: ${b.nome} (+${brl(b.preco)})</option>`).join('');
   el('sale-extra').innerHTML = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${a.nome} (+${brl(a.preco)})</option>`).join('');
   const pizzaOptions = type === 'pizza';
   el('two-flavors-wrap').classList.toggle('hidden', !pizzaOptions);
-  updateSecondFlavorVisibility();
+  if (!pizzaOptions) closeHalfFlavorModal();
   el('pizza-order-size').disabled = !pizzaOptions;
   el('pizza-order-size').classList.toggle('hidden', !pizzaOptions);
   el('sale-edge').disabled = !pizzaOptions;
   el('sale-extra').disabled = !pizzaOptions;
 }
 
-function updateSecondFlavorVisibility() {
-  const isPizza = el('product-type').value === 'pizza';
-  const showSecondFlavor = isPizza && el('two-flavors').checked;
-  el('product-id-second').classList.toggle('hidden', !showSecondFlavor);
+function showToast(message) {
+  const toast = el('toast');
+  toast.textContent = message;
+  toast.classList.remove('hidden');
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => toast.classList.add('hidden'), 2400);
+}
+
+function bindHalfFlavorModal() {
+  el('half-flavor-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    halfFlavorState.sabor1 = el('half-flavor-one').value;
+    halfFlavorState.sabor2 = el('half-flavor-two').value;
+    halfFlavorState.tamanho = el('half-flavor-size').value;
+    halfFlavorState.bordaId = el('half-flavor-edge').value;
+    halfFlavorState.obs = el('half-flavor-note').value.trim();
+    halfFlavorState.configured = true;
+    el('pizza-order-size').value = halfFlavorState.tamanho;
+    el('sale-edge').value = halfFlavorState.bordaId;
+    closeHalfFlavorModal();
+    showToast('Pizza meio a meio configurada.');
+  });
+  el('half-flavor-cancel').addEventListener('click', () => {
+    el('two-flavors').checked = false;
+    halfFlavorState.configured = false;
+    closeHalfFlavorModal();
+  });
+  el('half-flavor-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'half-flavor-modal') {
+      closeHalfFlavorModal();
+    }
+  });
+}
+
+function handleTwoFlavorsToggle() {
+  const enabled = el('two-flavors').checked;
+  if (!enabled) {
+    halfFlavorState.configured = false;
+    closeHalfFlavorModal();
+    return;
+  }
+  if (el('product-type').value !== 'pizza') {
+    el('two-flavors').checked = false;
+    showToast('Meio a meio só está disponível para pizza.');
+    return;
+  }
+  openHalfFlavorModal();
+}
+
+function openHalfFlavorModal() {
+  const pizzas = db.produtos.pizzas;
+  if (!pizzas.length) {
+    el('two-flavors').checked = false;
+    showToast('Cadastre ao menos 1 pizza antes de usar meio a meio.');
+    return;
+  }
+  const pizzaOptions = pizzas.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome}</option>`).join('');
+  const edgeOptions = db.produtos.bordas.map((b) => `<option value="${b.id}">${b.nome}</option>`).join('');
+  el('half-flavor-one').innerHTML = pizzaOptions;
+  el('half-flavor-two').innerHTML = pizzaOptions;
+  el('half-flavor-edge').innerHTML = edgeOptions || '<option value="">Sem borda</option>';
+  el('half-flavor-size').value = el('pizza-order-size').value;
+  el('half-flavor-one').value = halfFlavorState.sabor1 || el('product-id').value || pizzas[0].id;
+  el('half-flavor-two').value = halfFlavorState.sabor2 || el('product-id').value || pizzas[0].id;
+  el('half-flavor-edge').value = halfFlavorState.bordaId || db.produtos.bordas[0]?.id || '';
+  el('half-flavor-note').value = halfFlavorState.obs || '';
+  el('half-flavor-modal').classList.remove('hidden');
+  el('half-flavor-modal').setAttribute('aria-hidden', 'false');
+}
+
+function closeHalfFlavorModal() {
+  el('half-flavor-modal').classList.add('hidden');
+  el('half-flavor-modal').setAttribute('aria-hidden', 'true');
 }
 
 function addOrderItem() {
@@ -433,21 +506,32 @@ function addOrderItem() {
   const item = { tipo: type, nome: product.nome, qtd: qty, base: 0, borda: null, adicional: null };
 
   if (type === 'pizza') {
-    const secondProduct = el('two-flavors').checked ? source.find((x) => x.id === el('product-id-second').value) : null;
-    if (el('two-flavors').checked && !secondProduct) return alert('Selecione o segundo sabor da pizza.');
+    const isHalf = el('two-flavors').checked;
+    if (isHalf && !halfFlavorState.configured) {
+      openHalfFlavorModal();
+      showToast('Configure os sabores no popup para continuar.');
+      return;
+    }
+    const firstFlavorId = isHalf ? halfFlavorState.sabor1 : product.id;
+    const secondFlavorId = isHalf ? halfFlavorState.sabor2 : '';
+    const firstFlavor = source.find((x) => x.id === firstFlavorId) || product;
+    const secondFlavor = secondFlavorId ? source.find((x) => x.id === secondFlavorId) : null;
     const pizzaSize = el('pizza-order-size').value;
-    const firstPrice = getPizzaPrice(product, pizzaSize);
-    const secondPrice = secondProduct ? getPizzaPrice(secondProduct, pizzaSize) : 0;
+    const sizeForCalc = isHalf ? halfFlavorState.tamanho : pizzaSize;
+    const firstPrice = getPizzaPrice(firstFlavor, sizeForCalc);
+    const secondPrice = secondFlavor ? getPizzaPrice(secondFlavor, sizeForCalc) : 0;
     const pizzaBase = Math.max(firstPrice, secondPrice);
     totalUnit = pizzaBase;
-    item.tamanho = pizzaSize === 'broto' ? 'Broto' : 'Grande';
-    item.nome = secondProduct ? `${product.nome} / ${secondProduct.nome}` : product.nome;
+    item.tamanho = sizeForCalc === 'broto' ? 'Broto' : 'Grande';
+    item.nome = secondFlavor ? `${firstFlavor.nome} / ${secondFlavor.nome}` : firstFlavor.nome;
     item.base = pizzaBase;
 
-    const borda = db.produtos.bordas.find((x) => x.id === el('sale-edge').value);
+    const edgeId = isHalf ? halfFlavorState.bordaId : el('sale-edge').value;
+    const borda = db.produtos.bordas.find((x) => x.id === edgeId);
     const adicional = db.produtos.adicionais.find((x) => x.id === el('sale-extra').value);
     if (borda) { totalUnit += Number(borda.preco); item.borda = borda.nome; }
     if (adicional) { totalUnit += Number(adicional.preco); item.adicional = adicional.nome; }
+    if (isHalf && halfFlavorState.obs) item.obs = halfFlavorState.obs;
     item.total = totalUnit * qty;
   } else {
     totalUnit = Number(product.preco);
@@ -527,7 +611,8 @@ function finishSale(e) {
     session.carrinho = [];
     e.target.reset();
     el('two-flavors').checked = false;
-    updateSecondFlavorVisibility();
+    halfFlavorState.configured = false;
+    closeHalfFlavorModal();
     adjustSaleTypeFields();
     updateProductSelector();
     renderOrder();
@@ -554,7 +639,8 @@ function finishSale(e) {
   session.carrinho = [];
   e.target.reset();
   el('two-flavors').checked = false;
-  updateSecondFlavorVisibility();
+  halfFlavorState.configured = false;
+  closeHalfFlavorModal();
   adjustSaleTypeFields();
   updateProductSelector();
   renderOrder();
@@ -571,7 +657,7 @@ function registerSale(sale) {
 
 function printSaleReceipt(sale) {
   const lines = sale.itens.map((item) => {
-    const detail = [item.tamanho, item.borda, item.adicional].filter(Boolean).join(' | ');
+    const detail = [item.tamanho, item.borda, item.adicional, item.obs ? `Obs: ${item.obs}` : ''].filter(Boolean).join(' | ');
     return `<tr>
       <td>${item.qtd}x ${item.nome}${detail ? `<br><small>${detail}</small>` : ''}</td>
       <td class="right">${brl(item.total)}</td>
@@ -753,8 +839,9 @@ function renderList(id, items, formatter) {
 function renderOrder() {
   el('order-items').innerHTML = session.carrinho.map((x, index) => {
     const pizzaInfo = x.tamanho ? ` (${x.tamanho})` : '';
+    const obsInfo = x.obs ? ` | Obs: ${x.obs}` : '';
     return `<li>
-      ${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''} = ${brl(x.total)}
+      ${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''}${obsInfo} = ${brl(x.total)}
       <button type="button" data-order-action="edit" data-index="${index}">Editar</button>
       <button type="button" class="danger" data-order-action="remove" data-index="${index}">Excluir</button>
     </li>`;

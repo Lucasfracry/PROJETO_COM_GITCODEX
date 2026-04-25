@@ -154,7 +154,6 @@
                   <input id="two-flavors" type="checkbox" />
                   <span>Pizza 2 sabores</span>
                 </div>
-                <select id="product-id-second" class="hidden"></select>
                 <select id="pizza-order-size">
                   <option value="broto">Broto</option>
                   <option value="grande">Grande</option>
@@ -205,6 +204,41 @@
         </section>
       </section>
     </main>
+
+    <div id="half-flavor-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="half-flavor-title">
+        <h3 id="half-flavor-title">MEIO A MEIO</h3>
+        <form id="half-flavor-form" class="grid-form">
+          <label>
+            Sabor 1:
+            <select id="half-flavor-one" required></select>
+          </label>
+          <label>
+            Sabor 2:
+            <select id="half-flavor-two" required></select>
+          </label>
+          <label>
+            Tamanho:
+            <select id="half-flavor-size" required>
+              <option value="broto">Broto</option>
+              <option value="grande">Grande</option>
+            </select>
+          </label>
+          <label>
+            Borda:
+            <select id="half-flavor-edge" required></select>
+          </label>
+          <label>
+            Obs:
+            <textarea id="half-flavor-note" rows="3" placeholder="Observações da pizza"></textarea>
+          </label>
+          <button type="submit">Confirmar</button>
+          <button id="half-flavor-cancel" type="button" class="secondary">Cancelar</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.min.js"></script>
     <script src="script.js"></script>
   </body>
