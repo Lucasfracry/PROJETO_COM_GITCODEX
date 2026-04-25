@@ -280,26 +280,31 @@ select {
 #sale-form {
   max-width: 100%;
   margin: 0;
-  gap: .8rem;
+  gap: .55rem;
+  height: 100%;
 }
 
 .pdv-layout {
   display: grid;
   grid-template-columns: 1.7fr 1fr;
   gap: .9rem;
-  align-items: start;
+  align-items: stretch;
+  height: calc(100vh - 220px);
+  min-height: 560px;
 }
 
 .pdv-menu,
 .pdv-order {
   margin-bottom: 0;
+  height: 100%;
+}
+
+#sales {
+  overflow: hidden;
 }
 
 .pdv-order {
-  position: sticky;
-  top: .7rem;
-  max-height: calc(100vh - 1.4rem);
-  overflow: auto;
+  overflow: hidden;
 }
 
 .pdv-menu h3,
@@ -310,40 +315,41 @@ select {
 .pdv-order input,
 .pdv-order select,
 .pdv-order button {
-  min-height: 38px;
-  font-size: .95rem;
+  min-height: 36px;
+  font-size: .9rem;
 }
 
 #catalog-search {
-  background: #e9e7d2;
-  color: #1f2937;
-  border: 2px solid #f59e0b;
+  background: #0b1324;
+  color: #dbe6ff;
+  border: 1px solid #355089;
   font-weight: 800;
 }
 
 #catalog-half-trigger {
-  margin-top: .55rem;
-  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+  margin-top: .4rem;
+  background: linear-gradient(180deg, #365f9e 0%, #2d4f83 100%);
 }
 
 .pizza-catalog-grid {
-  margin-top: .65rem;
+  margin-top: .5rem;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: .55rem;
-  max-height: 68vh;
+  gap: .45rem;
+  max-height: calc(100% - 102px);
   overflow: auto;
   padding-right: .35rem;
 }
 
 .pizza-catalog-item {
-  background: #f3f4f6;
-  color: #1f2937;
-  border: 1px solid #d1d5db;
-  min-height: 96px;
+  background: #f8fafc;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  min-height: 82px;
   display: grid;
-  gap: .35rem;
+  gap: .2rem;
   align-content: start;
+  padding: .5rem .45rem;
 }
 
 .pizza-catalog-item .num {
@@ -359,8 +365,8 @@ select {
 
 .sale-customer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: .5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem;
 }
 
 input:focus,
@@ -398,9 +404,13 @@ ul {
 }
 
 #order-items {
-  max-height: 180px;
+  max-height: 145px;
   overflow: auto;
   padding-right: .3rem;
+}
+
+#sale-form > .row:last-child {
+  margin-top: auto;
 }
 
 #pizza-list li,
@@ -508,10 +518,15 @@ ul {
 
   .pdv-layout {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
   }
 
   .pdv-order {
-    position: static;
     max-height: none;
+  }
+
+  .sale-customer-grid {
+    grid-template-columns: 1fr;
   }
 }
