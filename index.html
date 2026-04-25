@@ -127,34 +127,91 @@
 
         <section id="sales" class="panel card">
           <h2>PDV (Vendas)</h2>
+          <header class="sales-operational-header">
+            <strong>Módulo PDV Operacional</strong>
+            <nav class="sales-shortcuts-nav" aria-label="Atalhos visuais do PDV">
+              <span>F2 Vendas</span>
+              <span>Alt+1 Pizza</span>
+              <span>Alt+2 Bebida</span>
+              <span>Alt+S Meio a meio</span>
+              <span>Ctrl+Enter Add Item</span>
+            </nav>
+          </header>
           <div class="pdv-layout">
             <article class="pdv-menu card">
-              <h3>Cardápio</h3>
+              <h3>Catálogo de sabores</h3>
               <input id="catalog-search" type="text" placeholder="Buscar por nº ou nome da pizza" />
               <button id="catalog-half-trigger" type="button">Pizza meio a meio</button>
               <div id="pizza-catalog-grid" class="pizza-catalog-grid"></div>
+
+              <section id="half-composition-panel" class="half-composition card hidden">
+                <h4>Pizza meio a meio</h4>
+                <form id="half-flavor-form" class="grid-form">
+                  <label>
+                    1º sabor
+                    <select id="half-flavor-one" required></select>
+                  </label>
+                  <label>
+                    2º sabor
+                    <select id="half-flavor-two" required></select>
+                  </label>
+                  <label>
+                    Tamanho
+                    <select id="half-flavor-size" required>
+                      <option value="broto">Broto</option>
+                      <option value="grande">Grande</option>
+                    </select>
+                  </label>
+                  <label>
+                    Borda
+                    <select id="half-flavor-edge" required></select>
+                  </label>
+                  <label>
+                    Adicional (pizza inteira)
+                    <select id="half-extra-whole">
+                      <option value="">Sem adicional</option>
+                    </select>
+                  </label>
+                  <label>
+                    Adicional (meia pizza)
+                    <select id="half-extra-half">
+                      <option value="">Sem adicional</option>
+                    </select>
+                  </label>
+                  <label>
+                    Observação
+                    <textarea id="half-flavor-note" rows="3" placeholder="Observações da composição"></textarea>
+                  </label>
+                  <div class="row">
+                    <button type="submit">Adicionar composição</button>
+                    <button id="half-flavor-cancel" type="button" class="secondary">Cancelar composição</button>
+                  </div>
+                </form>
+              </section>
             </article>
             <article class="pdv-order card">
-              <h3>Pedido</h3>
               <form id="sale-form" class="grid-form">
-                <label>
-                  Tipo de venda
-                  <select id="sale-type" required>
-                    <option value="Delivery">Delivery</option>
-                    <option value="Balcão">Balcão</option>
-                    <option value="Mesa">Mesa</option>
-                  </select>
-                </label>
-                <div class="sale-customer-grid">
-                  <label id="customer-name-wrap">Nome do cliente <input id="customer-name" type="text" /></label>
-                  <label id="address-wrap">Endereço <input id="customer-address" type="text" /></label>
-                  <label id="phone-wrap">Telefone <input id="customer-phone" type="text" /></label>
-                  <label id="table-wrap" class="hidden">Número da mesa <input id="table-number" type="number" min="1" /></label>
-                </div>
+                <section class="sales-card">
+                  <h3>Dados do cliente</h3>
+                  <label>
+                    Tipo de pedido
+                    <select id="sale-type" required>
+                      <option value="Delivery">Delivery</option>
+                      <option value="Balcão">Balcão</option>
+                      <option value="Mesa">Mesa</option>
+                    </select>
+                  </label>
+                  <div class="sale-customer-grid">
+                    <label id="customer-name-wrap">Nome do cliente <input id="customer-name" type="text" /></label>
+                    <label id="phone-wrap">Telefone <input id="customer-phone" type="text" /></label>
+                    <label id="address-wrap">Endereço <input id="customer-address" type="text" /></label>
+                    <label id="table-wrap" class="hidden">Número da mesa <input id="table-number" type="number" min="1" /></label>
+                  </div>
+                </section>
 
-                <fieldset>
-                  <legend>Itens do pedido</legend>
-                  <div class="row">
+                <section class="sales-card">
+                  <h3>Itens do pedido</h3>
+                  <div class="row sales-item-row">
                     <select id="product-type">
                       <option value="pizza">Pizza</option>
                       <option value="drink">Bebida</option>
@@ -171,26 +228,38 @@
                     <select id="sale-edge"></select>
                     <select id="sale-extra"></select>
                     <input id="product-qty" type="number" min="1" value="1" />
-                    <button id="add-item" type="button">Adicionar Item</button>
+                    <button id="add-item" type="button">Adicionar</button>
                   </div>
-                </fieldset>
+                  <ul id="order-items"></ul>
+                </section>
 
-                <ul id="order-items"></ul>
+                <section class="sales-card">
+                  <h3>Resumo financeiro</h3>
+                  <div class="finance-grid">
+                    <label>Subtotal <input id="order-subtotal" type="text" value="R$ 0,00" readonly /></label>
+                    <label>Taxa (R$) <input id="order-fee" type="number" min="0" step="0.01" value="0" /></label>
+                    <label>Desconto (R$) <input id="order-discount" type="number" min="0" step="0.01" value="0" /></label>
+                    <label>Total <input id="order-total-display" type="text" value="R$ 0,00" readonly /></label>
+                  </div>
+                  <p>Total geral: <strong id="order-total">R$ 0,00</strong></p>
+                </section>
 
-                <label>
-                  Forma de pagamento
-                  <select id="payment-method" required>
-                    <option value="Dinheiro">Dinheiro</option>
-                    <option value="Cartão">Cartão</option>
-                    <option value="Pix">Pix</option>
-                  </select>
-                </label>
-
-                <p>Total: <strong id="order-total">R$ 0,00</strong></p>
-                <div class="row">
-                  <button type="submit">Finalizar venda</button>
-                  <button id="cancel-order" type="button" class="secondary">Cancelar pedido</button>
-                </div>
+                <section class="sales-card">
+                  <h3>Ações finais</h3>
+                  <label>
+                    Forma de pagamento
+                    <select id="payment-method" required>
+                      <option value="Dinheiro">Dinheiro</option>
+                      <option value="Cartão">Cartão</option>
+                      <option value="Pix">Pix</option>
+                    </select>
+                  </label>
+                  <div class="row">
+                    <button type="submit">Finalizar</button>
+                    <button id="action-payment" type="button" class="secondary">Pagamento</button>
+                    <button id="cancel-order" type="button" class="danger">Cancelar</button>
+                  </div>
+                </section>
               </form>
             </article>
           </div>
@@ -216,51 +285,6 @@
         </section>
       </section>
     </main>
-
-    <div id="half-flavor-modal" class="modal-overlay hidden" aria-hidden="true">
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="half-flavor-title">
-        <h3 id="half-flavor-title">MEIO A MEIO</h3>
-        <form id="half-flavor-form" class="grid-form">
-          <label>
-            Sabor 1:
-            <select id="half-flavor-one" required></select>
-          </label>
-          <label>
-            Sabor 2:
-            <select id="half-flavor-two" required></select>
-          </label>
-          <label>
-            Tamanho:
-            <select id="half-flavor-size" required>
-              <option value="broto">Broto</option>
-              <option value="grande">Grande</option>
-            </select>
-          </label>
-          <label>
-            Borda:
-            <select id="half-flavor-edge" required></select>
-          </label>
-          <label>
-            Adicional (pizza inteira):
-            <select id="half-extra-whole">
-              <option value="">Sem adicional</option>
-            </select>
-          </label>
-          <label>
-            Adicional (meia pizza):
-            <select id="half-extra-half">
-              <option value="">Sem adicional</option>
-            </select>
-          </label>
-          <label>
-            Obs:
-            <textarea id="half-flavor-note" rows="3" placeholder="Observações da pizza"></textarea>
-          </label>
-          <button type="submit">Confirmar</button>
-          <button id="half-flavor-cancel" type="button" class="secondary">Cancelar</button>
-        </form>
-      </div>
-    </div>
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.min.js"></script>
