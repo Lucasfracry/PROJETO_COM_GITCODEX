@@ -22,7 +22,16 @@ const defaultData = {
 let db = load();
 let session = { user: null, carrinho: [] };
 let sqliteEnginePromise = null;
-const halfFlavorState = { configured: false, sabor1: '', sabor2: '', tamanho: 'broto', bordaId: '', obs: '' };
+const halfFlavorState = {
+  configured: false,
+  sabor1: '',
+  sabor2: '',
+  tamanho: 'broto',
+  bordaId: '',
+  adicionalInteiroId: '',
+  adicionalMetadeId: '',
+  obs: ''
+};
 const SHORTCUTS = [
   { combo: 'F2', action: 'Abrir aba PDV (Vendas)', detail: 'Leva direto para a tela principal de vendas.' },
   { combo: 'F3', action: 'Abrir aba Cadastro', detail: 'Acesso rápido para cadastrar pizzas, bordas, adicionais e bebidas.' },
@@ -434,6 +443,8 @@ function bindHalfFlavorModal() {
     halfFlavorState.sabor2 = el('half-flavor-two').value;
     halfFlavorState.tamanho = el('half-flavor-size').value;
     halfFlavorState.bordaId = el('half-flavor-edge').value;
+    halfFlavorState.adicionalInteiroId = el('half-extra-whole').value;
+    halfFlavorState.adicionalMetadeId = el('half-extra-half').value;
     halfFlavorState.obs = el('half-flavor-note').value.trim();
     halfFlavorState.configured = true;
     el('pizza-order-size').value = halfFlavorState.tamanho;
@@ -477,13 +488,18 @@ function openHalfFlavorModal() {
   }
   const pizzaOptions = pizzas.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome}</option>`).join('');
   const edgeOptions = db.produtos.bordas.map((b) => `<option value="${b.id}">${b.nome}</option>`).join('');
+  const extraOptions = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">${a.nome} (+${brl(a.preco)})</option>`).join('');
   el('half-flavor-one').innerHTML = pizzaOptions;
   el('half-flavor-two').innerHTML = pizzaOptions;
   el('half-flavor-edge').innerHTML = edgeOptions || '<option value="">Sem borda</option>';
+  el('half-extra-whole').innerHTML = extraOptions;
+  el('half-extra-half').innerHTML = extraOptions;
   el('half-flavor-size').value = el('pizza-order-size').value;
   el('half-flavor-one').value = halfFlavorState.sabor1 || el('product-id').value || pizzas[0].id;
   el('half-flavor-two').value = halfFlavorState.sabor2 || el('product-id').value || pizzas[0].id;
   el('half-flavor-edge').value = halfFlavorState.bordaId || db.produtos.bordas[0]?.id || '';
+  el('half-extra-whole').value = halfFlavorState.adicionalInteiroId || '';
+  el('half-extra-half').value = halfFlavorState.adicionalMetadeId || '';
   el('half-flavor-note').value = halfFlavorState.obs || '';
   el('half-flavor-modal').classList.remove('hidden');
   el('half-flavor-modal').setAttribute('aria-hidden', 'false');
@@ -530,7 +546,22 @@ function addOrderItem() {
     const borda = db.produtos.bordas.find((x) => x.id === edgeId);
     const adicional = db.produtos.adicionais.find((x) => x.id === el('sale-extra').value);
     if (borda) { totalUnit += Number(borda.preco); item.borda = borda.nome; }
-    if (adicional) { totalUnit += Number(adicional.preco); item.adicional = adicional.nome; }
+    if (isHalf) {
+      const adicionalInteiro = db.produtos.adicionais.find((x) => x.id === halfFlavorState.adicionalInteiroId);
+      const adicionalMetade = db.produtos.adicionais.find((x) => x.id === halfFlavorState.adicionalMetadeId);
+      if (adicionalInteiro) {
+        totalUnit += Number(adicionalInteiro.preco);
+        item.adicional = adicionalInteiro.nome;
+      }
+      if (adicionalMetade) {
+        const metadeValor = Number(adicionalMetade.preco) / 2;
+        totalUnit += metadeValor;
+        item.adicionalMetade = `${adicionalMetade.nome} (1/2)`;
+      }
+    } else if (adicional) {
+      totalUnit += Number(adicional.preco);
+      item.adicional = adicional.nome;
+    }
     if (isHalf && halfFlavorState.obs) item.obs = halfFlavorState.obs;
     item.total = totalUnit * qty;
   } else {
@@ -657,7 +688,7 @@ function registerSale(sale) {
 
 function printSaleReceipt(sale) {
   const lines = sale.itens.map((item) => {
-    const detail = [item.tamanho, item.borda, item.adicional, item.obs ? `Obs: ${item.obs}` : ''].filter(Boolean).join(' | ');
+    const detail = [item.tamanho, item.borda, item.adicional, item.adicionalMetade, item.obs ? `Obs: ${item.obs}` : ''].filter(Boolean).join(' | ');
     return `<tr>
       <td>${item.qtd}x ${item.nome}${detail ? `<br><small>${detail}</small>` : ''}</td>
       <td class="right">${brl(item.total)}</td>
@@ -839,9 +870,10 @@ function renderList(id, items, formatter) {
 function renderOrder() {
   el('order-items').innerHTML = session.carrinho.map((x, index) => {
     const pizzaInfo = x.tamanho ? ` (${x.tamanho})` : '';
+    const halfExtraInfo = x.adicionalMetade ? ` | ${x.adicionalMetade}` : '';
     const obsInfo = x.obs ? ` | Obs: ${x.obs}` : '';
     return `<li>
-      ${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''}${obsInfo} = ${brl(x.total)}
+      ${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''}${halfExtraInfo}${obsInfo} = ${brl(x.total)}
       <button type="button" data-order-action="edit" data-index="${index}">Editar</button>
       <button type="button" class="danger" data-order-action="remove" data-index="${index}">Excluir</button>
     </li>`;
