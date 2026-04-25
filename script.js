@@ -50,11 +50,46 @@ const SHORTCUTS = [
   { combo: 'Ctrl + Shift + Enter', action: 'Finalizar venda', detail: 'Envia o formulário de venda e fecha o pedido atual.' }
 ];
 
+function withUuid(item) {
+  if (item?.id) return item;
+  return { ...item, id: crypto.randomUUID() };
+}
+
+function normalizeDbShape(input) {
+  const base = structuredClone(defaultData);
+  const data = input && typeof input === 'object' ? input : {};
+
+  const normalized = {
+    ...base,
+    ...data,
+    users: Array.isArray(data.users) && data.users.length ? data.users : base.users,
+    caixa: data.caixa ? {
+      ...base.caixa,
+      ...data.caixa,
+      pagamentos: {
+        Dinheiro: Number(data.caixa?.pagamentos?.Dinheiro || 0),
+        Cartão: Number(data.caixa?.pagamentos?.Cartão || 0),
+        Pix: Number(data.caixa?.pagamentos?.Pix || 0)
+      }
+    } : null,
+    produtos: {
+      pizzas: (Array.isArray(data.produtos?.pizzas) ? data.produtos.pizzas : base.produtos.pizzas).map(withUuid),
+      adicionais: (Array.isArray(data.produtos?.adicionais) ? data.produtos.adicionais : base.produtos.adicionais).map(withUuid),
+      bordas: (Array.isArray(data.produtos?.bordas) ? data.produtos.bordas : base.produtos.bordas).map(withUuid),
+      bebidas: (Array.isArray(data.produtos?.bebidas) ? data.produtos.bebidas : base.produtos.bebidas).map(withUuid)
+    },
+    mesasAbertas: Array.isArray(data.mesasAbertas) ? data.mesasAbertas : [],
+    vendas: Array.isArray(data.vendas) ? data.vendas : []
+  };
+
+  return normalized;
+}
+
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return structuredClone(defaultData);
   try {
-    return JSON.parse(raw);
+    return normalizeDbShape(JSON.parse(raw));
   } catch {
     return structuredClone(defaultData);
   }
@@ -63,11 +98,11 @@ function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 function brl(v) { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function escapeHtml(value) {
   return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 function now() { return new Date(); }
 function getPizzaPrice(pizza, size) {
