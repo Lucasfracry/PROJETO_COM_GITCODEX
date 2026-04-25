@@ -1,6 +1,6 @@
 # PDV Pizzaria (HTML/CSS/JavaScript)
 
-Sistema de PDV simples para rodar localmente no navegador, sem dependências externas.
+Sistema de PDV simples para rodar localmente no navegador.
 
 ## Como executar localmente
 
@@ -68,6 +68,9 @@ No terminal em que o servidor estiver rodando, pressione:
 - Pagamento por Dinheiro, Cartão ou Pix
 - Histórico com resumo financeiro do caixa
 - Persistência local via `localStorage`
+- Migração de banco legado SQLite (`.db/.sqlite`) pela aba **Cadastro**:
+  - importa tabelas `items`, `pizzas`, `bordas`, `orders` e `order_items` quando existirem;
+  - permite substituir os dados atuais ou mesclar com o cadastro existente.
 
 ## Observações
 

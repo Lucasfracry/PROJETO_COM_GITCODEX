@@ -108,6 +108,19 @@
               </form>
               <ul id="drink-list"></ul>
             </article>
+            <article>
+              <h3>Migração SQLite</h3>
+              <p class="hint">Importe um arquivo <strong>.db/.sqlite</strong> (SQLite format 3) para migrar produtos e vendas.</p>
+              <form id="sqlite-import-form" class="grid-form">
+                <input id="sqlite-file" type="file" accept=".db,.sqlite,.sqlite3,application/x-sqlite3" required />
+                <label class="checkbox-label">
+                  <input id="sqlite-replace-data" type="checkbox" checked />
+                  Substituir dados atuais antes de importar
+                </label>
+                <button type="submit">Importar banco SQLite</button>
+              </form>
+              <p id="sqlite-import-status" class="hint"></p>
+            </article>
           </div>
         </section>
 
@@ -192,6 +205,7 @@
         </section>
       </section>
     </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

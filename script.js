@@ -21,6 +21,7 @@ const defaultData = {
 
 let db = load();
 let session = { user: null, carrinho: [] };
+let sqliteEnginePromise = null;
 const SHORTCUTS = [
   { combo: 'F2', action: 'Abrir aba PDV (Vendas)', detail: 'Leva direto para a tela principal de vendas.' },
   { combo: 'F3', action: 'Abrir aba Cadastro', detail: 'Acesso rápido para cadastrar pizzas, bordas, adicionais e bebidas.' },
@@ -64,6 +65,7 @@ function init() {
   bindProductManagement();
   bindShortcuts();
   bindHistory();
+  bindSqliteImport();
   fillDateTime();
   refreshAll();
 }
@@ -154,6 +156,178 @@ function bindRegister() {
     });
     e.target.reset();
   });
+}
+
+function bindSqliteImport() {
+  const form = el('sqlite-import-form');
+  if (!form) return;
+  form.addEventListener('submit', importSqliteFile);
+}
+
+async function getSqliteEngine() {
+  if (sqliteEnginePromise) return sqliteEnginePromise;
+  if (typeof window.initSqlJs !== 'function') {
+    throw new Error('Biblioteca SQL.js não carregada.');
+  }
+  sqliteEnginePromise = window.initSqlJs({
+    locateFile: (file) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/${file}`
+  });
+  return sqliteEnginePromise;
+}
+
+function hasTable(sqliteDb, tableName) {
+  const rows = sqliteDb.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`);
+  return rows.length > 0 && rows[0].values.length > 0;
+}
+
+function toRows(result) {
+  if (!result?.length) return [];
+  const [{ columns, values }] = result;
+  return values.map((row) => Object.fromEntries(columns.map((col, idx) => [col, row[idx]])));
+}
+
+function mapImportedOrderType(orderType) {
+  const normalized = String(orderType || '').toUpperCase();
+  if (normalized === 'BALCAO') return 'Balcão';
+  if (normalized === 'MESA') return 'Mesa';
+  return 'Delivery';
+}
+
+function mapImportedPayment(payment) {
+  const normalized = String(payment || '').toLowerCase();
+  if (normalized.includes('dinheiro')) return 'Dinheiro';
+  if (normalized.includes('pix')) return 'Pix';
+  return 'Cartão';
+}
+
+function mergeUniqueByName(target, source, mapItem) {
+  const existing = new Set(target.map((item) => item.nome.toLowerCase()));
+  source.forEach((row) => {
+    const mapped = mapItem(row);
+    if (!mapped?.nome) return;
+    const key = mapped.nome.toLowerCase();
+    if (existing.has(key)) return;
+    target.push(mapped);
+    existing.add(key);
+  });
+}
+
+async function importSqliteFile(e) {
+  e.preventDefault();
+  const status = el('sqlite-import-status');
+  const fileInput = el('sqlite-file');
+  const replaceData = el('sqlite-replace-data').checked;
+  const file = fileInput.files?.[0];
+
+  if (!file) {
+    status.textContent = 'Selecione um arquivo SQLite antes de importar.';
+    return;
+  }
+
+  status.textContent = 'Lendo banco SQLite...';
+
+  try {
+    const SQL = await getSqliteEngine();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const sqliteDb = new SQL.Database(bytes);
+
+    const importedState = replaceData
+      ? { produtos: { pizzas: [], adicionais: [], bordas: [], bebidas: [] }, vendas: [] }
+      : {
+        produtos: {
+          pizzas: structuredClone(db.produtos.pizzas),
+          adicionais: structuredClone(db.produtos.adicionais),
+          bordas: structuredClone(db.produtos.bordas),
+          bebidas: structuredClone(db.produtos.bebidas)
+        },
+        vendas: structuredClone(db.vendas)
+      };
+
+    if (hasTable(sqliteDb, 'items')) {
+      const rows = toRows(sqliteDb.exec('SELECT type, code, name, price_broto, price_grande, price, active FROM items'));
+      mergeUniqueByName(importedState.produtos.pizzas, rows.filter((r) => r.type === 'pizza' && Number(r.active) !== 0), (r) => ({
+        id: crypto.randomUUID(),
+        numero: Number(r.code) || importedState.produtos.pizzas.length + 1,
+        nome: String(r.name || '').trim(),
+        broto: Number(r.price_broto ?? r.price ?? 0),
+        grande: Number(r.price_grande ?? r.price ?? 0)
+      }));
+      mergeUniqueByName(importedState.produtos.bordas, rows.filter((r) => r.type === 'borda' && Number(r.active) !== 0), (r) => ({
+        id: crypto.randomUUID(),
+        nome: String(r.name || '').trim(),
+        preco: Number(r.price ?? 0)
+      }));
+      mergeUniqueByName(importedState.produtos.bebidas, rows.filter((r) => r.type === 'outros' && Number(r.active) !== 0), (r) => ({
+        id: crypto.randomUUID(),
+        nome: String(r.name || '').trim(),
+        tipo: 'Outros',
+        preco: Number(r.price ?? 0)
+      }));
+    }
+
+    if (hasTable(sqliteDb, 'pizzas')) {
+      const rows = toRows(sqliteDb.exec('SELECT numero, nome, preco FROM pizzas'));
+      mergeUniqueByName(importedState.produtos.pizzas, rows, (r) => ({
+        id: crypto.randomUUID(),
+        numero: Number(r.numero) || importedState.produtos.pizzas.length + 1,
+        nome: String(r.nome || '').trim(),
+        broto: Number(r.preco ?? 0),
+        grande: Number(r.preco ?? 0)
+      }));
+    }
+
+    if (hasTable(sqliteDb, 'bordas')) {
+      const rows = toRows(sqliteDb.exec('SELECT nome, preco FROM bordas'));
+      mergeUniqueByName(importedState.produtos.bordas, rows, (r) => ({
+        id: crypto.randomUUID(),
+        nome: String(r.nome || '').trim(),
+        preco: Number(r.preco ?? 0)
+      }));
+    }
+
+    if (hasTable(sqliteDb, 'orders')) {
+      const orderRows = toRows(sqliteDb.exec('SELECT id, order_type, customer, payment, total, created_at FROM orders'));
+      const itemRows = hasTable(sqliteDb, 'order_items')
+        ? toRows(sqliteDb.exec('SELECT order_id, kind, description, qty, unit_price, total, meta_json FROM order_items'))
+        : [];
+
+      const orderItemsMap = new Map();
+      itemRows.forEach((item) => {
+        const list = orderItemsMap.get(item.order_id) || [];
+        list.push({
+          tipo: item.kind === 'meio_a_meio' ? 'pizza' : 'item',
+          nome: String(item.description || 'Item'),
+          qtd: Number(item.qty || 1),
+          base: Number(item.unit_price || 0),
+          total: Number(item.total || 0)
+        });
+        orderItemsMap.set(item.order_id, list);
+      });
+
+      const importedSales = orderRows.map((order) => ({
+        id: crypto.randomUUID(),
+        data: order.created_at ? new Date(String(order.created_at).replace(' ', 'T')).toISOString() : now().toISOString(),
+        tipoVenda: mapImportedOrderType(order.order_type),
+        cliente: String(order.customer || ''),
+        endereco: '',
+        telefone: '',
+        itens: orderItemsMap.get(order.id) || [],
+        pagamento: mapImportedPayment(order.payment),
+        total: Number(order.total || 0)
+      }));
+
+      importedState.vendas.push(...importedSales);
+    }
+
+    db.produtos = importedState.produtos;
+    db.vendas = importedState.vendas;
+    save();
+    refreshAll();
+    status.textContent = `Importação concluída: ${db.produtos.pizzas.length} pizzas, ${db.produtos.bordas.length} bordas, ${db.produtos.bebidas.length} bebidas e ${db.vendas.length} vendas.`;
+    fileInput.value = '';
+  } catch (error) {
+    status.textContent = `Falha ao importar SQLite: ${error.message}`;
+  }
 }
 
 function bindSales() {
