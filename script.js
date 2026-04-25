@@ -411,7 +411,15 @@ function bindSales() {
   el('pizza-order-size').addEventListener('change', updateProductSelector);
   el('two-flavors').addEventListener('change', handleTwoFlavorsToggle);
   el('add-item').addEventListener('click', addOrderItem);
-  el('cancel-order').addEventListener('click', () => { session.carrinho = []; renderOrder(); });
+  el('cancel-order').addEventListener('click', () => {
+    session.carrinho = [];
+    el('order-fee').value = '0';
+    el('order-discount').value = '0';
+    renderOrder();
+  });
+  el('action-payment').addEventListener('click', () => el('payment-method').focus());
+  el('order-fee').addEventListener('input', renderOrder);
+  el('order-discount').addEventListener('input', renderOrder);
   el('order-items').addEventListener('click', onOrderListAction);
   el('sale-form').addEventListener('submit', finishSale);
 }
@@ -482,7 +490,7 @@ function bindShortcuts() {
     if (e.ctrlKey && !e.shiftKey && e.key === '2') { e.preventDefault(); el('product-id').focus(); }
     if (e.ctrlKey && !e.shiftKey && e.key === '3') {
       e.preventDefault();
-      if (!el('half-flavor-modal').classList.contains('hidden')) el('half-flavor-two').focus();
+      if (!el('half-composition-panel').classList.contains('hidden')) el('half-flavor-two').focus();
     }
     if (e.ctrlKey && !e.shiftKey && e.key === '4') { e.preventDefault(); el('product-qty').focus(); }
 
@@ -552,11 +560,6 @@ function bindHalfFlavorModal() {
     halfFlavorState.configured = false;
     closeHalfFlavorModal();
   });
-  el('half-flavor-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'half-flavor-modal') {
-      closeHalfFlavorModal();
-    }
-  });
 }
 
 function handleTwoFlavorsToggle() {
@@ -597,13 +600,11 @@ function openHalfFlavorModal() {
   el('half-extra-whole').value = halfFlavorState.adicionalInteiroId || '';
   el('half-extra-half').value = halfFlavorState.adicionalMetadeId || '';
   el('half-flavor-note').value = halfFlavorState.obs || '';
-  el('half-flavor-modal').classList.remove('hidden');
-  el('half-flavor-modal').setAttribute('aria-hidden', 'false');
+  el('half-composition-panel').classList.remove('hidden');
 }
 
 function closeHalfFlavorModal() {
-  el('half-flavor-modal').classList.add('hidden');
-  el('half-flavor-modal').setAttribute('aria-hidden', 'true');
+  el('half-composition-panel').classList.add('hidden');
 }
 
 function addOrderItem() {
@@ -679,16 +680,30 @@ function onOrderListAction(e) {
     session.carrinho.splice(idx, 1);
     renderOrder();
   }
-  if (btn.dataset.orderAction === 'edit') {
+  if (btn.dataset.orderAction === 'qty-plus') {
     const current = session.carrinho[idx];
     if (!current) return;
-    const nextQty = Number(prompt('Nova quantidade:', String(current.qtd)));
-    if (!nextQty || nextQty < 1) return alert('Quantidade inválida.');
     const unitPrice = current.total / current.qtd;
-    current.qtd = nextQty;
-    current.total = unitPrice * nextQty;
+    current.qtd += 1;
+    current.total = unitPrice * current.qtd;
     renderOrder();
   }
+  if (btn.dataset.orderAction === 'qty-minus') {
+    const current = session.carrinho[idx];
+    if (!current || current.qtd <= 1) return;
+    const unitPrice = current.total / current.qtd;
+    current.qtd -= 1;
+    current.total = unitPrice * current.qtd;
+    renderOrder();
+  }
+}
+
+function getOrderSummary() {
+  const subtotal = session.carrinho.reduce((s, i) => s + i.total, 0);
+  const fee = Number(el('order-fee')?.value || 0);
+  const discount = Number(el('order-discount')?.value || 0);
+  const total = Math.max(0, subtotal + fee - discount);
+  return { subtotal, fee, discount, total };
 }
 
 function validateSaleType() {
@@ -710,7 +725,7 @@ function finishSale(e) {
   if (err) return alert(err);
   if (!session.carrinho.length) return alert('Adicione itens ao pedido.');
 
-  const total = session.carrinho.reduce((s, i) => s + i.total, 0);
+  const { total, subtotal, fee, discount } = getOrderSummary();
   const pagamento = el('payment-method').value;
   const tipoVenda = el('sale-type').value;
 
@@ -737,6 +752,8 @@ function finishSale(e) {
 
     session.carrinho = [];
     e.target.reset();
+    el('order-fee').value = '0';
+    el('order-discount').value = '0';
     el('two-flavors').checked = false;
     halfFlavorState.configured = false;
     closeHalfFlavorModal();
@@ -757,6 +774,9 @@ function finishSale(e) {
     telefone: el('customer-phone').value || '',
     itens: structuredClone(session.carrinho),
     pagamento,
+    subtotal,
+    taxaEntrega: fee,
+    desconto: discount,
     total
   };
 
@@ -765,6 +785,8 @@ function finishSale(e) {
 
   session.carrinho = [];
   e.target.reset();
+  el('order-fee').value = '0';
+  el('order-discount').value = '0';
   el('two-flavors').checked = false;
   halfFlavorState.configured = false;
   closeHalfFlavorModal();
@@ -975,13 +997,20 @@ function renderOrder() {
     const halfExtraInfo = x.adicionalMetade ? ` | ${escapeHtml(x.adicionalMetade)}` : '';
     const obsInfo = x.obs ? ` | Obs: ${escapeHtml(x.obs)}` : '';
     return `<li>
-      ${x.qtd}x ${escapeHtml(x.nome)}${pizzaInfo}${x.borda ? ` | ${escapeHtml(x.borda)}` : ''}${x.adicional ? ` | ${escapeHtml(x.adicional)}` : ''}${halfExtraInfo}${obsInfo} = ${brl(x.total)}
-      <button type="button" data-order-action="edit" data-index="${index}">Editar</button>
-      <button type="button" class="danger" data-order-action="remove" data-index="${index}">Excluir</button>
+      <span>${x.qtd}x ${escapeHtml(x.nome)}${pizzaInfo}${x.borda ? ` | ${escapeHtml(x.borda)}` : ''}${x.adicional ? ` | ${escapeHtml(x.adicional)}` : ''}${halfExtraInfo}${obsInfo} = ${brl(x.total)}</span>
+      <div class="order-item-actions">
+        <button type="button" data-order-action="qty-minus" data-index="${index}">-</button>
+        <button type="button" data-order-action="qty-plus" data-index="${index}">+</button>
+        <button type="button" class="danger" data-order-action="remove" data-index="${index}">Remover</button>
+      </div>
     </li>`;
   }).join('') || '<li>Nenhum item.</li>';
-  const total = session.carrinho.reduce((s, i) => s + i.total, 0);
+  const { subtotal, fee, discount, total } = getOrderSummary();
+  el('order-subtotal').value = brl(subtotal);
+  el('order-total-display').value = brl(total);
   el('order-total').textContent = brl(total);
+  if (Number.isNaN(fee)) el('order-fee').value = '0';
+  if (Number.isNaN(discount)) el('order-discount').value = '0';
 }
 
 function getRegisterCollection(type) {
@@ -1085,10 +1114,14 @@ function renderPizzaCatalog() {
     .sort((a, b) => Number(a.numero) - Number(b.numero));
 
   grid.innerHTML = pizzas.map((p) => `
-    <button type="button" class="pizza-catalog-item" data-pizza-id="${p.id}">
-      <span class="num">${p.numero}</span>
+    <article class="pizza-catalog-item">
+      <div class="pizza-catalog-thumb" aria-hidden="true">🍕</div>
+      <span class="num">#${p.numero}</span>
       <strong>${escapeHtml(p.nome)}</strong>
-    </button>
+      <small>Pizza artesanal, molho da casa.</small>
+      <p>Broto ${brl(getPizzaPrice(p, 'broto'))} | Grande ${brl(getPizzaPrice(p, 'grande'))}</p>
+      <button type="button" data-pizza-id="${p.id}">Adicionar</button>
+    </article>
   `).join('');
 
   grid.querySelectorAll('[data-pizza-id]').forEach((btn) => {
