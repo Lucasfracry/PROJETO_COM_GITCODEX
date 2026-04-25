@@ -50,12 +50,60 @@ const SHORTCUTS = [
   { combo: 'Ctrl + Shift + Enter', action: 'Finalizar venda', detail: 'Envia o formulário de venda e fecha o pedido atual.' }
 ];
 
+function withUuid(item) {
+  if (item?.id) return item;
+  return { ...item, id: crypto.randomUUID() };
+}
+
+function normalizeDbShape(input) {
+  const base = structuredClone(defaultData);
+  const data = input && typeof input === 'object' ? input : {};
+
+  const normalized = {
+    ...base,
+    ...data,
+    users: Array.isArray(data.users) && data.users.length ? data.users : base.users,
+    caixa: data.caixa ? {
+      ...base.caixa,
+      ...data.caixa,
+      pagamentos: {
+        Dinheiro: Number(data.caixa?.pagamentos?.Dinheiro || 0),
+        Cartão: Number(data.caixa?.pagamentos?.Cartão || 0),
+        Pix: Number(data.caixa?.pagamentos?.Pix || 0)
+      }
+    } : null,
+    produtos: {
+      pizzas: (Array.isArray(data.produtos?.pizzas) ? data.produtos.pizzas : base.produtos.pizzas).map(withUuid),
+      adicionais: (Array.isArray(data.produtos?.adicionais) ? data.produtos.adicionais : base.produtos.adicionais).map(withUuid),
+      bordas: (Array.isArray(data.produtos?.bordas) ? data.produtos.bordas : base.produtos.bordas).map(withUuid),
+      bebidas: (Array.isArray(data.produtos?.bebidas) ? data.produtos.bebidas : base.produtos.bebidas).map(withUuid)
+    },
+    mesasAbertas: Array.isArray(data.mesasAbertas) ? data.mesasAbertas : [],
+    vendas: Array.isArray(data.vendas) ? data.vendas : []
+  };
+
+  return normalized;
+}
+
 function load() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  return raw ? JSON.parse(raw) : structuredClone(defaultData);
+  if (!raw) return structuredClone(defaultData);
+  try {
+    return normalizeDbShape(JSON.parse(raw));
+  } catch {
+    return structuredClone(defaultData);
+  }
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 function brl(v) { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 function now() { return new Date(); }
 function getPizzaPrice(pizza, size) {
   const sizeValue = Number(pizza?.[size]);
@@ -457,15 +505,15 @@ function updateProductSelector() {
 
   if (type === 'pizza') {
     const labelSize = selectedSize === 'broto' ? 'Broto' : 'Grande';
-    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome} (${labelSize} ${brl(getPizzaPrice(p, selectedSize))})</option>`).join('');
+    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${escapeHtml(p.nome)} (${labelSize} ${brl(getPizzaPrice(p, selectedSize))})</option>`).join('');
   } else {
-    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${p.nome} - ${brl(p.preco)}</option>`).join('');
+    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${escapeHtml(p.nome)} - ${brl(p.preco)}</option>`).join('');
     el('two-flavors').checked = false;
     halfFlavorState.configured = false;
   }
 
-  el('sale-edge').innerHTML = db.produtos.bordas.map((b) => `<option value="${b.id}">Borda: ${b.nome} (+${brl(b.preco)})</option>`).join('');
-  el('sale-extra').innerHTML = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${a.nome} (+${brl(getExtraWholePrice(a))})</option>`).join('');
+  el('sale-edge').innerHTML = db.produtos.bordas.map((b) => `<option value="${b.id}">Borda: ${escapeHtml(b.nome)} (+${brl(b.preco)})</option>`).join('');
+  el('sale-extra').innerHTML = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${escapeHtml(a.nome)} (+${brl(getExtraWholePrice(a))})</option>`).join('');
   const pizzaOptions = type === 'pizza';
   el('two-flavors-wrap').classList.toggle('hidden', !pizzaOptions);
   if (!pizzaOptions) closeHalfFlavorModal();
@@ -533,10 +581,10 @@ function openHalfFlavorModal() {
     showToast('Cadastre ao menos 1 pizza antes de usar meio a meio.');
     return;
   }
-  const pizzaOptions = pizzas.map((p) => `<option value="${p.id}">#${p.numero} ${p.nome}</option>`).join('');
-  const edgeOptions = db.produtos.bordas.map((b) => `<option value="${b.id}">${b.nome}</option>`).join('');
-  const extraOptionsWhole = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">${a.nome} (+${brl(getExtraWholePrice(a))})</option>`).join('');
-  const extraOptionsHalf = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">${a.nome} (+${brl(getExtraHalfPrice(a))})</option>`).join('');
+  const pizzaOptions = pizzas.map((p) => `<option value="${p.id}">#${p.numero} ${escapeHtml(p.nome)}</option>`).join('');
+  const edgeOptions = db.produtos.bordas.map((b) => `<option value="${b.id}">${escapeHtml(b.nome)}</option>`).join('');
+  const extraOptionsWhole = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">${escapeHtml(a.nome)} (+${brl(getExtraWholePrice(a))})</option>`).join('');
+  const extraOptionsHalf = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">${escapeHtml(a.nome)} (+${brl(getExtraHalfPrice(a))})</option>`).join('');
   el('half-flavor-one').innerHTML = pizzaOptions;
   el('half-flavor-two').innerHTML = pizzaOptions;
   el('half-flavor-edge').innerHTML = edgeOptions || '<option value="">Sem borda</option>';
@@ -736,9 +784,15 @@ function registerSale(sale) {
 
 function printSaleReceipt(sale) {
   const lines = sale.itens.map((item) => {
-    const detail = [item.tamanho, item.borda, item.adicional, item.adicionalMetade, item.obs ? `Obs: ${item.obs}` : ''].filter(Boolean).join(' | ');
+    const detail = [
+      item.tamanho,
+      item.borda,
+      item.adicional,
+      item.adicionalMetade,
+      item.obs ? `Obs: ${item.obs}` : ''
+    ].filter(Boolean).map(escapeHtml).join(' | ');
     return `<tr>
-      <td>${item.qtd}x ${item.nome}${detail ? `<br><small>${detail}</small>` : ''}</td>
+      <td>${item.qtd}x ${escapeHtml(item.nome)}${detail ? `<br><small>${detail}</small>` : ''}</td>
       <td class="right">${brl(item.total)}</td>
     </tr>`;
   }).join('');
@@ -769,15 +823,15 @@ function printSaleReceipt(sale) {
         <p class="center muted">Comanda de venda</p>
         <hr />
         <p><strong>Data:</strong> ${new Date(sale.data).toLocaleString('pt-BR')}</p>
-        <p><strong>Tipo:</strong> ${sale.tipoVenda}</p>
-        <p><strong>Cliente:</strong> ${sale.cliente || '-'}</p>
-        ${sale.endereco ? `<p><strong>Endereço:</strong> ${sale.endereco}</p>` : ''}
-        ${sale.telefone ? `<p><strong>Telefone:</strong> ${sale.telefone}</p>` : ''}
+        <p><strong>Tipo:</strong> ${escapeHtml(sale.tipoVenda)}</p>
+        <p><strong>Cliente:</strong> ${escapeHtml(sale.cliente || '-')}</p>
+        ${sale.endereco ? `<p><strong>Endereço:</strong> ${escapeHtml(sale.endereco)}</p>` : ''}
+        ${sale.telefone ? `<p><strong>Telefone:</strong> ${escapeHtml(sale.telefone)}</p>` : ''}
         <hr />
         <table>${lines}</table>
         <hr />
         <table>
-          <tr><td>Pagamento</td><td class="right">${sale.pagamento}</td></tr>
+          <tr><td>Pagamento</td><td class="right">${escapeHtml(sale.pagamento)}</td></tr>
           <tr><td class="total">TOTAL</td><td class="right total">${brl(sale.total)}</td></tr>
         </table>
         <hr />
@@ -917,11 +971,11 @@ function renderList(id, items, formatter) {
 
 function renderOrder() {
   el('order-items').innerHTML = session.carrinho.map((x, index) => {
-    const pizzaInfo = x.tamanho ? ` (${x.tamanho})` : '';
-    const halfExtraInfo = x.adicionalMetade ? ` | ${x.adicionalMetade}` : '';
-    const obsInfo = x.obs ? ` | Obs: ${x.obs}` : '';
+    const pizzaInfo = x.tamanho ? ` (${escapeHtml(x.tamanho)})` : '';
+    const halfExtraInfo = x.adicionalMetade ? ` | ${escapeHtml(x.adicionalMetade)}` : '';
+    const obsInfo = x.obs ? ` | Obs: ${escapeHtml(x.obs)}` : '';
     return `<li>
-      ${x.qtd}x ${x.nome}${pizzaInfo}${x.borda ? ` | ${x.borda}` : ''}${x.adicional ? ` | ${x.adicional}` : ''}${halfExtraInfo}${obsInfo} = ${brl(x.total)}
+      ${x.qtd}x ${escapeHtml(x.nome)}${pizzaInfo}${x.borda ? ` | ${escapeHtml(x.borda)}` : ''}${x.adicional ? ` | ${escapeHtml(x.adicional)}` : ''}${halfExtraInfo}${obsInfo} = ${brl(x.total)}
       <button type="button" data-order-action="edit" data-index="${index}">Editar</button>
       <button type="button" class="danger" data-order-action="remove" data-index="${index}">Excluir</button>
     </li>`;
@@ -1006,10 +1060,10 @@ function renderRegisterLists() {
       <button type="button" data-action="edit" data-type="${type}" data-id="${id}">Editar</button>
       <button type="button" class="danger" data-action="delete" data-type="${type}" data-id="${id}">Excluir</button>`;
 
-  renderList('pizza-list', db.produtos.pizzas, (p) => withActions(`#${p.numero} ${p.nome} | Broto ${brl(getPizzaPrice(p, 'broto'))} | Grande ${brl(getPizzaPrice(p, 'grande'))}`, 'pizzas', p.id));
-  renderList('extra-list', db.produtos.adicionais, (a) => withActions(`${a.nome} | Inteira ${brl(getExtraWholePrice(a))} | Meia ${brl(getExtraHalfPrice(a))}`, 'adicionais', a.id));
-  renderList('edge-list', db.produtos.bordas, (b) => withActions(`${b.nome} - ${brl(b.preco)}`, 'bordas', b.id));
-  renderList('drink-list', db.produtos.bebidas, (d) => withActions(`${d.nome} (${d.tipo}) - ${brl(d.preco)}`, 'bebidas', d.id));
+  renderList('pizza-list', db.produtos.pizzas, (p) => withActions(`#${p.numero} ${escapeHtml(p.nome)} | Broto ${brl(getPizzaPrice(p, 'broto'))} | Grande ${brl(getPizzaPrice(p, 'grande'))}`, 'pizzas', p.id));
+  renderList('extra-list', db.produtos.adicionais, (a) => withActions(`${escapeHtml(a.nome)} | Inteira ${brl(getExtraWholePrice(a))} | Meia ${brl(getExtraHalfPrice(a))}`, 'adicionais', a.id));
+  renderList('edge-list', db.produtos.bordas, (b) => withActions(`${escapeHtml(b.nome)} - ${brl(b.preco)}`, 'bordas', b.id));
+  renderList('drink-list', db.produtos.bebidas, (d) => withActions(`${escapeHtml(d.nome)} (${escapeHtml(d.tipo)}) - ${brl(d.preco)}`, 'bebidas', d.id));
 }
 
 function renderShortcutTutorial() {
@@ -1033,7 +1087,7 @@ function renderPizzaCatalog() {
   grid.innerHTML = pizzas.map((p) => `
     <button type="button" class="pizza-catalog-item" data-pizza-id="${p.id}">
       <span class="num">${p.numero}</span>
-      <strong>${p.nome}</strong>
+      <strong>${escapeHtml(p.nome)}</strong>
     </button>
   `).join('');
 
@@ -1056,13 +1110,13 @@ function renderOpenTables() {
   wrap.innerHTML = db.mesasAbertas.map((mesa) => `
     <article class="table-card">
       <h3>Mesa ${mesa.numeroMesa}</h3>
-      <p>Cliente: ${mesa.cliente}</p>
+      <p>Cliente: ${escapeHtml(mesa.cliente)}</p>
       <p>Aberta em: ${new Date(mesa.abertoEm).toLocaleString('pt-BR')}</p>
       <ul>
-        ${mesa.itens.map((item) => `<li>${item.qtd}x ${item.nome}${item.tamanho ? ` (${item.tamanho})` : ''} - ${brl(item.total)}</li>`).join('')}
+        ${mesa.itens.map((item) => `<li>${item.qtd}x ${escapeHtml(item.nome)}${item.tamanho ? ` (${escapeHtml(item.tamanho)})` : ''} - ${brl(item.total)}</li>`).join('')}
       </ul>
       <p><strong>Total: ${brl(mesa.total)}</strong></p>
-      <p>Pagamento: ${mesa.pagamento}</p>
+      <p>Pagamento: ${escapeHtml(mesa.pagamento)}</p>
       <button type="button" class="danger" data-close-table="${mesa.id}">Fechar mesa</button>
     </article>
   `).join('');
@@ -1094,7 +1148,8 @@ function renderHistory() {
     <p>Dinheiro: ${brl(c.pagamentos.Dinheiro)} | Cartão: ${brl(c.pagamentos.Cartão)} | Pix: ${brl(c.pagamentos.Pix)}</p>
     <p><strong>Total geral: ${brl(c.totalVendas + c.valorInicial)}</strong></p>`;
 
-  renderList('sales-history', db.vendas.slice().reverse(), (v) => `${new Date(v.data).toLocaleString('pt-BR')} - ${v.tipoVenda} - ${v.cliente} - ${v.pagamento} - ${brl(v.total)}`);
+  renderList('sales-history', db.vendas.slice().reverse(), (v) =>
+    `${new Date(v.data).toLocaleString('pt-BR')} - ${escapeHtml(v.tipoVenda)} - ${escapeHtml(v.cliente)} - ${escapeHtml(v.pagamento)} - ${brl(v.total)}`);
 }
 
 function refreshAll() {
