@@ -1,1201 +1,1189 @@
-const STORAGE_KEY = 'pdv_pizzaria_v2';
+let atendimentoAtual = null;
+let tamanhoSelecionado = "broto";
+let pizzaSelecionada = null;
+let categoriaProdutoAtual = "pizzas";
+let carrinho = [];
+let pedidos = [];
+let comandas = [];
+let comandaSelecionada = null;
 
-const defaultData = {
-  users: [{ username: 'admin', password: '1234', role: 'Admin' }],
-  caixa: null,
-  produtos: {
-    pizzas: [
-      { id: crypto.randomUUID(), nome: 'Mussarela', numero: 1, broto: 30, grande: 45 },
-      { id: crypto.randomUUID(), nome: 'Calabresa', numero: 2, broto: 32, grande: 47 }
-    ],
-    adicionais: [{ id: crypto.randomUUID(), nome: 'Catupiry', precoInteira: 5, precoMetade: 2.5 }],
-    bordas: [
-      { id: crypto.randomUUID(), nome: 'Sem borda', preco: 0 },
-      { id: crypto.randomUUID(), nome: 'Borda de cheddar', preco: 8 }
-    ],
-    bebidas: [{ id: crypto.randomUUID(), nome: 'Coca-Cola 2L', tipo: 'Refrigerante', preco: 14 }]
+let editandoPizza = null;
+let editandoBebida = null;
+
+let pizzas = [
+  {
+    numero: 1,
+    nome: "Mussarela",
+    descricao: "Mussarela, tomate, orégano e azeitona",
+    preco_broto: 35,
+    preco_grande: 55
   },
-  mesasAbertas: [],
-  vendas: []
-};
-
-let db = load();
-let session = { user: null, carrinho: [] };
-let sqliteEnginePromise = null;
-const halfFlavorState = {
-  configured: false,
-  sabor1: '',
-  sabor2: '',
-  tamanho: 'broto',
-  bordaId: '',
-  adicionalInteiroId: '',
-  adicionalMetadeId: '',
-  obs: ''
-};
-const SHORTCUTS = [
-  { combo: 'F2', action: 'Abrir aba PDV (Vendas)', detail: 'Leva direto para a tela principal de vendas.' },
-  { combo: 'F3', action: 'Abrir aba Cadastro', detail: 'Acesso rápido para cadastrar pizzas, bordas, adicionais e bebidas.' },
-  { combo: 'F4', action: 'Abrir aba Mesas Abertas', detail: 'Mostra todas as mesas com pedidos em aberto.' },
-  { combo: 'F6', action: 'Abrir aba Tutorial', detail: 'Exibe esta tela com explicação completa dos atalhos.' },
-  { combo: 'Alt + 1', action: 'Selecionar tipo Pizza no item', detail: 'No bloco “Itens do pedido”, define o produto como pizza.' },
-  { combo: 'Alt + 2', action: 'Selecionar tipo Bebida no item', detail: 'No bloco “Itens do pedido”, altera o tipo para bebida.' },
-  { combo: 'Alt + S', action: 'Ativar/Desativar Pizza 2 sabores', detail: 'Liga ou desliga a opção meio a meio na pizza atual.' },
-  { combo: 'Alt + B', action: 'Selecionar tamanho Broto', detail: 'Define tamanho Broto para cálculo de preço.' },
-  { combo: 'Alt + G', action: 'Selecionar tamanho Grande', detail: 'Define tamanho Grande para cálculo de preço.' },
-  { combo: 'Ctrl + 1', action: 'Focar campo Tipo de item', detail: 'Posiciona o cursor no seletor Pizza/Bebida.' },
-  { combo: 'Ctrl + 2', action: 'Focar campo Produto principal', detail: 'Foca no seletor do sabor/produto principal.' },
-  { combo: 'Ctrl + 3', action: 'Focar segundo sabor', detail: 'Foca no segundo sabor quando pizza 2 sabores estiver ativa.' },
-  { combo: 'Ctrl + 4', action: 'Focar quantidade do item', detail: 'Foca no campo de quantidade para digitação rápida.' },
-  { combo: 'Ctrl + Enter', action: 'Adicionar item ao pedido', detail: 'Adiciona o item selecionado sem clicar no botão.' },
-  { combo: 'Ctrl + Shift + Enter', action: 'Finalizar venda', detail: 'Envia o formulário de venda e fecha o pedido atual.' }
+  {
+    numero: 2,
+    nome: "Calabresa",
+    descricao: "Calabresa, cebola, mussarela e orégano",
+    preco_broto: 36,
+    preco_grande: 58
+  },
+  {
+    numero: 3,
+    nome: "Frango com Catupiry",
+    descricao: "Frango desfiado, catupiry, mussarela e orégano",
+    preco_broto: 39,
+    preco_grande: 62
+  },
+  {
+    numero: 4,
+    nome: "Portuguesa",
+    descricao: "Presunto, ovo, cebola, ervilha, mussarela e azeitona",
+    preco_broto: 40,
+    preco_grande: 65
+  }
 ];
 
-function withUuid(item) {
-  if (item?.id) return item;
-  return { ...item, id: crypto.randomUUID() };
+let bebidas = [
+  {
+    codigo: 101,
+    nome: "Coca-Cola lata",
+    categoria: "Refrigerante",
+    preco: 7
+  },
+  {
+    codigo: 102,
+    nome: "Guaraná lata",
+    categoria: "Refrigerante",
+    preco: 7
+  },
+  {
+    codigo: 103,
+    nome: "Água sem gás",
+    categoria: "Água",
+    preco: 4
+  },
+  {
+    codigo: 104,
+    nome: "Água com gás",
+    categoria: "Água",
+    preco: 5
+  }
+];
+
+function dinheiro(valor) {
+  return valor.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  });
 }
 
-function normalizeDbShape(input) {
-  const base = structuredClone(defaultData);
-  const data = input && typeof input === 'object' ? input : {};
+/* PÁGINAS */
 
-  const normalized = {
-    ...base,
-    ...data,
-    users: Array.isArray(data.users) && data.users.length ? data.users : base.users,
-    caixa: data.caixa ? {
-      ...base.caixa,
-      ...data.caixa,
-      pagamentos: {
-        Dinheiro: Number(data.caixa?.pagamentos?.Dinheiro || 0),
-        Cartão: Number(data.caixa?.pagamentos?.Cartão || 0),
-        Pix: Number(data.caixa?.pagamentos?.Pix || 0)
-      }
-    } : null,
-    produtos: {
-      pizzas: (Array.isArray(data.produtos?.pizzas) ? data.produtos.pizzas : base.produtos.pizzas).map(withUuid),
-      adicionais: (Array.isArray(data.produtos?.adicionais) ? data.produtos.adicionais : base.produtos.adicionais).map(withUuid),
-      bordas: (Array.isArray(data.produtos?.bordas) ? data.produtos.bordas : base.produtos.bordas).map(withUuid),
-      bebidas: (Array.isArray(data.produtos?.bebidas) ? data.produtos.bebidas : base.produtos.bebidas).map(withUuid)
-    },
-    mesasAbertas: Array.isArray(data.mesasAbertas) ? data.mesasAbertas : [],
-    vendas: Array.isArray(data.vendas) ? data.vendas : []
+function abrirPagina(pagina, botao) {
+  document.querySelectorAll(".page").forEach(secao => {
+    secao.classList.remove("active");
+  });
+
+  document.getElementById(pagina).classList.add("active");
+
+  document.querySelectorAll(".menu button").forEach(btn => {
+    btn.classList.remove("active");
+  });
+
+  botao.classList.add("active");
+
+  const nomes = {
+    pdv: "PDV",
+    pedidos: "Pedidos",
+    cardapio: "Cardápio",
+    relatorio: "Relatório",
+    config: "Configurações"
   };
 
-  return normalized;
+  const subtitulos = {
+    pdv: "Escolha o tipo de atendimento para iniciar o pedido.",
+    pedidos: "Veja os pedidos finalizados.",
+    cardapio: "Cadastre e gerencie pizzas e bebidas.",
+    relatorio: "Resumo das vendas.",
+    config: "Configurações do sistema."
+  };
+
+  document.getElementById("tituloPagina").textContent = nomes[pagina];
+  document.getElementById("subtituloPagina").textContent = subtitulos[pagina];
+
+  atualizarTelas();
 }
 
-function load() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return structuredClone(defaultData);
-  try {
-    return normalizeDbShape(JSON.parse(raw));
-  } catch {
-    return structuredClone(defaultData);
+/* ATENDIMENTO */
+
+function selecionarAtendimento(tipo) {
+  atendimentoAtual = tipo;
+  carrinho = [];
+  pizzaSelecionada = null;
+  comandaSelecionada = null;
+  categoriaProdutoAtual = "pizzas";
+
+  document.getElementById("selecaoAtendimento").classList.add("hidden");
+  document.getElementById("areaPedido").classList.remove("hidden");
+
+  document.getElementById("formDelivery").classList.add("hidden");
+  document.getElementById("formSalao").classList.add("hidden");
+  document.getElementById("formBalcao").classList.add("hidden");
+  document.getElementById("montagemPedido").classList.add("hidden");
+
+  if (tipo === "delivery") {
+    document.getElementById("tituloAtendimento").textContent = "Novo Delivery";
+    document.getElementById("descricaoAtendimento").textContent = "Informe os dados do cliente e monte o pedido.";
+    document.getElementById("formDelivery").classList.remove("hidden");
+    document.getElementById("montagemPedido").classList.remove("hidden");
+  }
+
+  if (tipo === "salao") {
+    document.getElementById("tituloAtendimento").textContent = "Atendimento Salão";
+    document.getElementById("descricaoAtendimento").textContent = "Abra ou selecione uma comanda para adicionar consumo.";
+    document.getElementById("formSalao").classList.remove("hidden");
+  }
+
+  if (tipo === "balcao") {
+    document.getElementById("tituloAtendimento").textContent = "Pedido Balcão";
+    document.getElementById("descricaoAtendimento").textContent = "Informe o nome do cliente e monte o pedido.";
+    document.getElementById("formBalcao").classList.remove("hidden");
+    document.getElementById("montagemPedido").classList.remove("hidden");
+  }
+
+  limparTelaPedido();
+  atualizarAbasProduto();
+  atualizarTelas();
+}
+
+function voltarSelecaoAtendimento() {
+  atendimentoAtual = null;
+  carrinho = [];
+  pizzaSelecionada = null;
+  comandaSelecionada = null;
+  categoriaProdutoAtual = "pizzas";
+
+  document.getElementById("selecaoAtendimento").classList.remove("hidden");
+  document.getElementById("areaPedido").classList.add("hidden");
+
+  limparTelaPedido();
+  atualizarTelas();
+}
+
+function limparTelaPedido() {
+  document.getElementById("pizzaSelecionadaTexto").textContent = "Nenhuma pizza";
+  document.getElementById("pizzaSelecionadaInput").value = "";
+  document.getElementById("observacao").value = "";
+  document.getElementById("quantidade").value = 1;
+  document.getElementById("tipoPizza").value = "inteira";
+
+  selecionarTamanho("broto");
+  atualizarTipoPizza();
+  renderizarCarrinho();
+}
+
+/* PRODUTOS */
+
+function renderizarProdutos() {
+  const lista = document.getElementById("listaProdutos");
+  const busca = document.getElementById("buscaProduto")?.value.toLowerCase() || "";
+
+  if (!lista) return;
+
+  lista.innerHTML = "";
+
+  if (categoriaProdutoAtual === "pizzas") {
+    const filtradas = pizzas.filter(pizza => {
+      return (
+        pizza.nome.toLowerCase().includes(busca) ||
+        String(pizza.numero).includes(busca)
+      );
+    });
+
+    if (filtradas.length === 0) {
+      lista.innerHTML = `<p style="color:#6b7280;">Nenhuma pizza encontrada.</p>`;
+      return;
+    }
+
+    filtradas.forEach(pizza => {
+      const div = document.createElement("div");
+      div.className = "produto";
+
+      if (pizzaSelecionada && pizzaSelecionada.numero === pizza.numero) {
+        div.classList.add("selecionado");
+      }
+
+      div.onclick = () => selecionarPizza(pizza.numero);
+
+      div.innerHTML = `
+        <div class="produto-numero">${pizza.numero}</div>
+        <h4>${pizza.nome}</h4>
+        <p>${pizza.descricao || ""}</p>
+
+        <div class="precos">
+          <span>Broto: <strong>${dinheiro(pizza.preco_broto)}</strong></span>
+          <span>Grande: <strong>${dinheiro(pizza.preco_grande)}</strong></span>
+        </div>
+      `;
+
+      lista.appendChild(div);
+    });
+  }
+
+  if (categoriaProdutoAtual === "bebidas") {
+    const filtradas = bebidas.filter(bebida => {
+      return (
+        bebida.nome.toLowerCase().includes(busca) ||
+        bebida.categoria.toLowerCase().includes(busca) ||
+        String(bebida.codigo).includes(busca)
+      );
+    });
+
+    if (filtradas.length === 0) {
+      lista.innerHTML = `<p style="color:#6b7280;">Nenhuma bebida encontrada.</p>`;
+      return;
+    }
+
+    filtradas.forEach(bebida => {
+      const div = document.createElement("div");
+      div.className = "produto produto-bebida";
+
+      div.onclick = () => adicionarBebidaAoCarrinho(bebida.codigo);
+
+      div.innerHTML = `
+        <div class="produto-numero">${bebida.codigo}</div>
+        <h4>${bebida.nome}</h4>
+        <p>${bebida.categoria}</p>
+
+        <div class="preco-bebida">
+          ${dinheiro(bebida.preco)}
+        </div>
+      `;
+
+      lista.appendChild(div);
+    });
   }
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
-function brl(v) { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-function now() { return new Date(); }
-function getPizzaPrice(pizza, size) {
-  const sizeValue = Number(pizza?.[size]);
-  if (Number.isFinite(sizeValue) && sizeValue >= 0) return sizeValue;
-  const legacyPrice = Number(pizza?.preco);
-  return Number.isFinite(legacyPrice) ? legacyPrice : 0;
-}
-function getExtraWholePrice(extra) {
-  const whole = Number(extra?.precoInteira);
-  if (Number.isFinite(whole) && whole >= 0) return whole;
-  const legacy = Number(extra?.preco);
-  return Number.isFinite(legacy) ? legacy : 0;
-}
-function getExtraHalfPrice(extra) {
-  const half = Number(extra?.precoMetade);
-  if (Number.isFinite(half) && half >= 0) return half;
-  return getExtraWholePrice(extra) / 2;
+
+function trocarCategoriaProduto(categoria) {
+  categoriaProdutoAtual = categoria;
+  atualizarAbasProduto();
+
+  const buscaProduto = document.getElementById("buscaProduto");
+
+  if (buscaProduto) {
+    buscaProduto.value = "";
+
+    if (categoria === "pizzas") {
+      buscaProduto.placeholder = "Buscar por número ou nome da pizza...";
+    }
+
+    if (categoria === "bebidas") {
+      buscaProduto.placeholder = "Buscar por código, nome ou categoria da bebida...";
+    }
+  }
+
+  renderizarProdutos();
 }
 
-const el = (id) => document.getElementById(id);
+function atualizarAbasProduto() {
+  const tabPizzas = document.getElementById("tabPizzas");
+  const tabBebidas = document.getElementById("tabBebidas");
 
-function init() {
-  bindTabs();
-  bindLogin();
-  bindCashOpen();
-  bindRegister();
-  bindSales();
-  bindProductManagement();
-  bindShortcuts();
-  bindHistory();
-  bindSqliteImport();
-  bindHalfFlavorModal();
-  bindCatalog();
-  fillDateTime();
-  refreshAll();
+  if (!tabPizzas || !tabBebidas) return;
+
+  tabPizzas.classList.remove("active");
+  tabBebidas.classList.remove("active");
+
+  if (categoriaProdutoAtual === "pizzas") {
+    tabPizzas.classList.add("active");
+  }
+
+  if (categoriaProdutoAtual === "bebidas") {
+    tabBebidas.classList.add("active");
+  }
 }
 
-function bindTabs() {
-  document.querySelectorAll('.tab').forEach((btn) => {
-    btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+function selecionarPizza(numero) {
+  pizzaSelecionada = pizzas.find(pizza => pizza.numero === numero);
+
+  document.getElementById("pizzaSelecionadaTexto").textContent = pizzaSelecionada.nome;
+  document.getElementById("pizzaSelecionadaInput").value = pizzaSelecionada.nome;
+
+  renderizarProdutos();
+}
+
+function selecionarTamanho(tamanho) {
+  tamanhoSelecionado = tamanho;
+
+  document.getElementById("btnBroto").classList.remove("active");
+  document.getElementById("btnGrande").classList.remove("active");
+
+  if (tamanho === "broto") {
+    document.getElementById("btnBroto").classList.add("active");
+  }
+
+  if (tamanho === "grande") {
+    document.getElementById("btnGrande").classList.add("active");
+  }
+}
+
+function atualizarTipoPizza() {
+  const tipo = document.getElementById("tipoPizza").value;
+  const pizzaInteiraBox = document.getElementById("pizzaInteiraBox");
+  const meioMeioBox = document.getElementById("meioMeioBox");
+
+  if (tipo === "meio") {
+    pizzaInteiraBox.style.display = "none";
+    meioMeioBox.style.display = "flex";
+  } else {
+    pizzaInteiraBox.style.display = "flex";
+    meioMeioBox.style.display = "none";
+  }
+
+  preencherSaboresMeioMeio();
+}
+
+function preencherSaboresMeioMeio() {
+  const sabor1 = document.getElementById("sabor1");
+  const sabor2 = document.getElementById("sabor2");
+
+  if (!sabor1 || !sabor2) return;
+
+  sabor1.innerHTML = "";
+  sabor2.innerHTML = "";
+
+  pizzas.forEach(pizza => {
+    const option1 = document.createElement("option");
+    option1.value = pizza.numero;
+    option1.textContent = `${pizza.numero} - ${pizza.nome}`;
+
+    const option2 = document.createElement("option");
+    option2.value = pizza.numero;
+    option2.textContent = `${pizza.numero} - ${pizza.nome}`;
+
+    sabor1.appendChild(option1);
+    sabor2.appendChild(option2);
   });
 }
 
-function activateTab(tabId) {
-  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x.dataset.tab === tabId));
-  document.querySelectorAll('.panel').forEach((x) => x.classList.toggle('active', x.id === tabId));
-  if (tabId === 'history') renderHistory();
-  if (tabId === 'open-tables') renderOpenTables();
+function pegarPrecoPizza(pizza) {
+  if (tamanhoSelecionado === "broto") {
+    return pizza.preco_broto;
+  }
+
+  return pizza.preco_grande;
 }
 
-function bindLogin() {
-  el('login-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const username = el('login-user').value.trim();
-    const password = el('login-pass').value;
-    const user = db.users.find((u) => u.username === username && u.password === password);
-    if (!user) return alert('Usuário ou senha inválidos.');
-    session.user = user;
-    el('session-user').textContent = `${user.username} (${user.role})`;
-    el('login-screen').classList.add('hidden');
-    el('app').classList.remove('hidden');
-  });
-  el('logout').addEventListener('click', () => location.reload());
-}
+/* CARRINHO */
 
-function fillDateTime() {
-  const d = now();
-  el('open-date').value = d.toLocaleDateString('pt-BR');
-  el('open-time').value = d.toLocaleTimeString('pt-BR');
-}
+function adicionarAoCarrinho() {
+  if (atendimentoAtual === "salao" && !comandaSelecionada) {
+    alert("Abra ou selecione uma comanda antes de adicionar itens.");
+    return;
+  }
 
-function bindCashOpen() {
-  el('open-cash-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (db.caixa?.aberto) return alert('Já existe um caixa aberto.');
-    const d = now();
-    db.caixa = {
-      aberto: true,
-      data: d.toISOString(),
-      horaAbertura: d.toISOString(),
-      horaFechamento: null,
-      valorInicial: Number(el('initial-amount').value),
-      totalVendas: 0,
-      pagamentos: { Dinheiro: 0, Cartão: 0, Pix: 0 }
+  const tipo = document.getElementById("tipoPizza").value;
+  const quantidade = Number(document.getElementById("quantidade").value);
+  const observacao = document.getElementById("observacao").value.trim();
+
+  if (quantidade <= 0) {
+    alert("Informe uma quantidade válida.");
+    return;
+  }
+
+  let item = null;
+
+  if (tipo === "inteira") {
+    if (!pizzaSelecionada) {
+      alert("Selecione uma pizza do cardápio.");
+      return;
+    }
+
+    const precoUnitario = pegarPrecoPizza(pizzaSelecionada);
+
+    item = {
+      nome: pizzaSelecionada.nome,
+      tipo: "Pizza inteira",
+      tamanho: tamanhoSelecionado,
+      quantidade,
+      precoUnitario,
+      total: precoUnitario * quantidade,
+      observacao
     };
-    save();
-    refreshAll();
-    alert('Caixa aberto com sucesso!');
-  });
-}
-
-function addItem(list, item) { list.push({ id: crypto.randomUUID(), ...item }); save(); refreshAll(); }
-
-function bindRegister() {
-  el('pizza-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    addItem(db.produtos.pizzas, {
-      nome: el('pizza-name').value.trim(),
-      numero: Number(el('pizza-number').value),
-      broto: Number(el('pizza-broto-price').value),
-      grande: Number(el('pizza-grande-price').value)
-    });
-    e.target.reset();
-  });
-  el('extra-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    addItem(db.produtos.adicionais, {
-      nome: el('extra-name').value,
-      precoInteira: Number(el('extra-whole-price').value),
-      precoMetade: Number(el('extra-half-price').value)
-    });
-    e.target.reset();
-  });
-  el('edge-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    addItem(db.produtos.bordas, { nome: el('edge-name').value, preco: Number(el('edge-price').value) });
-    e.target.reset();
-  });
-  el('drink-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    addItem(db.produtos.bebidas, {
-      nome: el('drink-name').value,
-      tipo: el('drink-type').value,
-      preco: Number(el('drink-price').value)
-    });
-    e.target.reset();
-  });
-}
-
-function bindSqliteImport() {
-  const form = el('sqlite-import-form');
-  if (!form) return;
-  form.addEventListener('submit', importSqliteFile);
-}
-
-async function getSqliteEngine() {
-  if (sqliteEnginePromise) return sqliteEnginePromise;
-  if (typeof window.initSqlJs !== 'function') {
-    throw new Error('Biblioteca SQL.js não carregada.');
   }
-  sqliteEnginePromise = window.initSqlJs({
-    locateFile: (file) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/${file}`
-  });
-  return sqliteEnginePromise;
+
+  if (tipo === "meio") {
+    const numero1 = Number(document.getElementById("sabor1").value);
+    const numero2 = Number(document.getElementById("sabor2").value);
+
+    const pizza1 = pizzas.find(pizza => pizza.numero === numero1);
+    const pizza2 = pizzas.find(pizza => pizza.numero === numero2);
+
+    const preco1 = pegarPrecoPizza(pizza1);
+    const preco2 = pegarPrecoPizza(pizza2);
+    const precoUnitario = Math.max(preco1, preco2);
+
+    item = {
+      nome: `Meio a meio: ${pizza1.nome} / ${pizza2.nome}`,
+      tipo: "Pizza meio a meio",
+      tamanho: tamanhoSelecionado,
+      quantidade,
+      precoUnitario,
+      total: precoUnitario * quantidade,
+      observacao
+    };
+  }
+
+  inserirItemNoPedido(item);
+
+  document.getElementById("observacao").value = "";
+  document.getElementById("quantidade").value = 1;
+
+  renderizarCarrinho();
+  renderizarComandas();
 }
 
-function hasTable(sqliteDb, tableName) {
-  const rows = sqliteDb.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`);
-  return rows.length > 0 && rows[0].values.length > 0;
-}
-
-function toRows(result) {
-  if (!result?.length) return [];
-  const [{ columns, values }] = result;
-  return values.map((row) => Object.fromEntries(columns.map((col, idx) => [col, row[idx]])));
-}
-
-function mapImportedOrderType(orderType) {
-  const normalized = String(orderType || '').toUpperCase();
-  if (normalized === 'BALCAO') return 'Balcão';
-  if (normalized === 'MESA') return 'Mesa';
-  return 'Delivery';
-}
-
-function mapImportedPayment(payment) {
-  const normalized = String(payment || '').toLowerCase();
-  if (normalized.includes('dinheiro')) return 'Dinheiro';
-  if (normalized.includes('pix')) return 'Pix';
-  return 'Cartão';
-}
-
-function mergeUniqueByName(target, source, mapItem) {
-  const existing = new Set(target.map((item) => item.nome.toLowerCase()));
-  source.forEach((row) => {
-    const mapped = mapItem(row);
-    if (!mapped?.nome) return;
-    const key = mapped.nome.toLowerCase();
-    if (existing.has(key)) return;
-    target.push(mapped);
-    existing.add(key);
-  });
-}
-
-async function importSqliteFile(e) {
-  e.preventDefault();
-  const status = el('sqlite-import-status');
-  const fileInput = el('sqlite-file');
-  const replaceData = el('sqlite-replace-data').checked;
-  const file = fileInput.files?.[0];
-
-  if (!file) {
-    status.textContent = 'Selecione um arquivo SQLite antes de importar.';
+function adicionarBebidaAoCarrinho(codigo) {
+  if (atendimentoAtual === "salao" && !comandaSelecionada) {
+    alert("Abra ou selecione uma comanda antes de adicionar bebidas.");
     return;
   }
 
-  status.textContent = 'Lendo banco SQLite...';
+  if (!atendimentoAtual) {
+    alert("Selecione Delivery, Salão ou Balcão antes de adicionar bebidas.");
+    return;
+  }
 
-  try {
-    const SQL = await getSqliteEngine();
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const sqliteDb = new SQL.Database(bytes);
+  const bebida = bebidas.find(item => item.codigo === codigo);
 
-    const importedState = replaceData
-      ? { produtos: { pizzas: [], adicionais: [], bordas: [], bebidas: [] }, vendas: [] }
-      : {
-        produtos: {
-          pizzas: structuredClone(db.produtos.pizzas),
-          adicionais: structuredClone(db.produtos.adicionais),
-          bordas: structuredClone(db.produtos.bordas),
-          bebidas: structuredClone(db.produtos.bebidas)
-        },
-        vendas: structuredClone(db.vendas)
-      };
+  if (!bebida) {
+    alert("Bebida não encontrada.");
+    return;
+  }
 
-    if (hasTable(sqliteDb, 'items')) {
-      const rows = toRows(sqliteDb.exec('SELECT type, code, name, price_broto, price_grande, price, active FROM items'));
-      mergeUniqueByName(importedState.produtos.pizzas, rows.filter((r) => r.type === 'pizza' && Number(r.active) !== 0), (r) => ({
-        id: crypto.randomUUID(),
-        numero: Number(r.code) || importedState.produtos.pizzas.length + 1,
-        nome: String(r.name || '').trim(),
-        broto: Number(r.price_broto ?? r.price ?? 0),
-        grande: Number(r.price_grande ?? r.price ?? 0)
-      }));
-      mergeUniqueByName(importedState.produtos.bordas, rows.filter((r) => r.type === 'borda' && Number(r.active) !== 0), (r) => ({
-        id: crypto.randomUUID(),
-        nome: String(r.name || '').trim(),
-        preco: Number(r.price ?? 0)
-      }));
-      mergeUniqueByName(importedState.produtos.bebidas, rows.filter((r) => r.type === 'outros' && Number(r.active) !== 0), (r) => ({
-        id: crypto.randomUUID(),
-        nome: String(r.name || '').trim(),
-        tipo: 'Outros',
-        preco: Number(r.price ?? 0)
-      }));
-    }
+  const item = {
+    nome: bebida.nome,
+    tipo: "Bebida",
+    tamanho: bebida.categoria,
+    quantidade: 1,
+    precoUnitario: bebida.preco,
+    total: bebida.preco,
+    observacao: ""
+  };
 
-    if (hasTable(sqliteDb, 'pizzas')) {
-      const rows = toRows(sqliteDb.exec('SELECT numero, nome, preco FROM pizzas'));
-      mergeUniqueByName(importedState.produtos.pizzas, rows, (r) => ({
-        id: crypto.randomUUID(),
-        numero: Number(r.numero) || importedState.produtos.pizzas.length + 1,
-        nome: String(r.nome || '').trim(),
-        broto: Number(r.preco ?? 0),
-        grande: Number(r.preco ?? 0)
-      }));
-    }
+  inserirItemNoPedido(item);
+  renderizarCarrinho();
+  renderizarComandas();
+}
 
-    if (hasTable(sqliteDb, 'bordas')) {
-      const rows = toRows(sqliteDb.exec('SELECT nome, preco FROM bordas'));
-      mergeUniqueByName(importedState.produtos.bordas, rows, (r) => ({
-        id: crypto.randomUUID(),
-        nome: String(r.nome || '').trim(),
-        preco: Number(r.preco ?? 0)
-      }));
-    }
-
-    if (hasTable(sqliteDb, 'orders')) {
-      const orderRows = toRows(sqliteDb.exec('SELECT id, order_type, customer, payment, total, created_at FROM orders'));
-      const itemRows = hasTable(sqliteDb, 'order_items')
-        ? toRows(sqliteDb.exec('SELECT order_id, kind, description, qty, unit_price, total, meta_json FROM order_items'))
-        : [];
-
-      const orderItemsMap = new Map();
-      itemRows.forEach((item) => {
-        const list = orderItemsMap.get(item.order_id) || [];
-        list.push({
-          tipo: item.kind === 'meio_a_meio' ? 'pizza' : 'item',
-          nome: String(item.description || 'Item'),
-          qtd: Number(item.qty || 1),
-          base: Number(item.unit_price || 0),
-          total: Number(item.total || 0)
-        });
-        orderItemsMap.set(item.order_id, list);
-      });
-
-      const importedSales = orderRows.map((order) => ({
-        id: crypto.randomUUID(),
-        data: order.created_at ? new Date(String(order.created_at).replace(' ', 'T')).toISOString() : now().toISOString(),
-        tipoVenda: mapImportedOrderType(order.order_type),
-        cliente: String(order.customer || ''),
-        endereco: '',
-        telefone: '',
-        itens: orderItemsMap.get(order.id) || [],
-        pagamento: mapImportedPayment(order.payment),
-        total: Number(order.total || 0)
-      }));
-
-      importedState.vendas.push(...importedSales);
-    }
-
-    db.produtos = importedState.produtos;
-    db.vendas = importedState.vendas;
-    save();
-    refreshAll();
-    status.textContent = `Importação concluída: ${db.produtos.pizzas.length} pizzas, ${db.produtos.bordas.length} bordas, ${db.produtos.bebidas.length} bebidas e ${db.vendas.length} vendas.`;
-    fileInput.value = '';
-  } catch (error) {
-    status.textContent = `Falha ao importar SQLite: ${error.message}`;
+function inserirItemNoPedido(item) {
+  if (atendimentoAtual === "salao") {
+    comandaSelecionada.itens.push(item);
+    carrinho = [...comandaSelecionada.itens];
+  } else {
+    carrinho.push(item);
   }
 }
 
-function bindSales() {
-  el('sale-type').addEventListener('change', adjustSaleTypeFields);
-  el('product-type').addEventListener('change', updateProductSelector);
-  el('pizza-order-size').addEventListener('change', updateProductSelector);
-  el('two-flavors').addEventListener('change', handleTwoFlavorsToggle);
-  el('add-item').addEventListener('click', addOrderItem);
-  el('cancel-order').addEventListener('click', () => {
-    session.carrinho = [];
-    el('order-fee').value = '0';
-    el('order-discount').value = '0';
-    renderOrder();
+function renderizarCarrinho() {
+  const divCarrinho = document.getElementById("carrinho");
+  const totalPedido = document.getElementById("totalPedido");
+
+  if (!divCarrinho || !totalPedido) return;
+
+  divCarrinho.innerHTML = "";
+
+  let total = 0;
+
+  if (carrinho.length === 0) {
+    divCarrinho.innerHTML = `<p style="color:#6b7280;">Nenhum item adicionado.</p>`;
+  }
+
+  carrinho.forEach((item, index) => {
+    total += item.total;
+
+    const div = document.createElement("div");
+    div.className = "item-carrinho";
+
+    let detalhe = "";
+
+    if (item.tipo === "Bebida") {
+      detalhe = `${item.quantidade}x ${item.tamanho} - ${dinheiro(item.precoUnitario)}`;
+    } else {
+      detalhe = `${item.quantidade}x ${item.tamanho.toUpperCase()} - ${dinheiro(item.precoUnitario)}`;
+    }
+
+    div.innerHTML = `
+      <div>
+        <h4>${item.nome}</h4>
+        <p>${item.tipo}</p>
+        <p>${detalhe}</p>
+        ${item.observacao ? `<p>Obs: ${item.observacao}</p>` : ""}
+        <strong>${dinheiro(item.total)}</strong>
+      </div>
+
+      <button onclick="removerItemCarrinho(${index})">X</button>
+    `;
+
+    divCarrinho.appendChild(div);
   });
-  el('action-payment').addEventListener('click', () => el('payment-method').focus());
-  el('order-fee').addEventListener('input', renderOrder);
-  el('order-discount').addEventListener('input', renderOrder);
-  el('order-items').addEventListener('click', onOrderListAction);
-  el('sale-form').addEventListener('submit', finishSale);
+
+  totalPedido.textContent = dinheiro(total);
 }
 
-function bindCatalog() {
-  const search = el('catalog-search');
-  const triggerHalf = el('catalog-half-trigger');
-  if (!search || !triggerHalf) return;
+function removerItemCarrinho(index) {
+  carrinho.splice(index, 1);
 
-  search.addEventListener('input', renderPizzaCatalog);
+  if (atendimentoAtual === "salao" && comandaSelecionada) {
+    comandaSelecionada.itens = [...carrinho];
+  }
 
-  search.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const typed = Number(search.value.trim());
-    if (!typed) return;
-    const pizza = db.produtos.pizzas.find((p) => Number(p.numero) === typed);
-    if (!pizza) {
-      showToast('Pizza não encontrada pelo número informado.');
+  renderizarCarrinho();
+  renderizarComandas();
+}
+
+function limparCarrinho() {
+  carrinho = [];
+
+  if (atendimentoAtual === "salao" && comandaSelecionada) {
+    comandaSelecionada.itens = [];
+  }
+
+  renderizarCarrinho();
+  renderizarComandas();
+}
+
+/* SALÃO / COMANDAS */
+
+function abrirOuSelecionarComanda() {
+  const mesa = Number(document.getElementById("salaoMesa").value);
+  const nome = document.getElementById("salaoNome").value.trim();
+
+  if (!mesa) {
+    alert("Informe o número da mesa.");
+    return;
+  }
+
+  let comanda = comandas.find(item => item.mesa === mesa && item.status === "Aberta");
+
+  if (!comanda) {
+    comanda = {
+      id: Date.now(),
+      mesa,
+      nome: nome || `Mesa ${mesa}`,
+      itens: [],
+      status: "Aberta"
+    };
+
+    comandas.push(comanda);
+  }
+
+  selecionarComanda(comanda.id);
+}
+
+function selecionarComanda(id) {
+  comandaSelecionada = comandas.find(comanda => comanda.id === id);
+  carrinho = [...comandaSelecionada.itens];
+
+  document.getElementById("montagemPedido").classList.remove("hidden");
+  document.getElementById("tituloAtendimento").textContent = `Mesa ${comandaSelecionada.mesa}`;
+  document.getElementById("descricaoAtendimento").textContent = `Comanda aberta: ${comandaSelecionada.nome}`;
+
+  renderizarCarrinho();
+  renderizarComandas();
+}
+
+function renderizarComandas() {
+  const lista = document.getElementById("listaComandas");
+
+  if (!lista) return;
+
+  lista.innerHTML = "";
+
+  const abertas = comandas.filter(comanda => comanda.status === "Aberta");
+
+  if (abertas.length === 0) {
+    lista.innerHTML = `<p style="color:#6b7280;">Nenhuma comanda aberta.</p>`;
+    return;
+  }
+
+  abertas.forEach(comanda => {
+    const total = comanda.itens.reduce((soma, item) => soma + item.total, 0);
+
+    const div = document.createElement("div");
+    div.className = "comanda-card";
+
+    if (comandaSelecionada && comandaSelecionada.id === comanda.id) {
+      div.classList.add("active");
+    }
+
+    div.onclick = () => selecionarComanda(comanda.id);
+
+    div.innerHTML = `
+      <strong>Mesa ${comanda.mesa}</strong>
+      <span>${comanda.nome}</span><br>
+      <span>${comanda.itens.length} item(ns)</span><br>
+      <strong>${dinheiro(total)}</strong>
+    `;
+
+    lista.appendChild(div);
+  });
+}
+
+/* FINALIZAR */
+
+function finalizarPedido() {
+  if (!atendimentoAtual) {
+    alert("Selecione um tipo de atendimento.");
+    return;
+  }
+
+  if (carrinho.length === 0) {
+    alert("O pedido está vazio.");
+    return;
+  }
+
+  let cliente = "";
+  let endereco = "";
+  let telefone = "";
+
+  if (atendimentoAtual === "delivery") {
+    cliente = document.getElementById("deliveryNome").value.trim();
+    telefone = document.getElementById("deliveryTelefone").value.trim();
+    endereco = document.getElementById("deliveryEndereco").value.trim();
+
+    if (!cliente || !telefone || !endereco) {
+      alert("Preencha nome, telefone e endereço do delivery.");
       return;
     }
-    el('product-type').value = 'pizza';
-    updateProductSelector();
-    el('product-id').value = pizza.id;
-    search.value = '';
-  });
-
-  triggerHalf.addEventListener('click', () => {
-    el('product-type').value = 'pizza';
-    updateProductSelector();
-    el('two-flavors').checked = true;
-    handleTwoFlavorsToggle();
-  });
-}
-
-function bindProductManagement() {
-  ['pizza-list', 'extra-list', 'edge-list', 'drink-list'].forEach((id) => {
-    el(id).addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-action]');
-      if (!btn) return;
-      const listType = btn.dataset.type;
-      const itemId = btn.dataset.id;
-      if (btn.dataset.action === 'delete') deleteRegisteredItem(listType, itemId);
-      if (btn.dataset.action === 'edit') editRegisteredItem(listType, itemId);
-    });
-  });
-}
-
-function bindShortcuts() {
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'F2') { e.preventDefault(); activateTab('sales'); }
-    if (e.key === 'F3') { e.preventDefault(); activateTab('register'); }
-    if (e.key === 'F4') { e.preventDefault(); activateTab('open-tables'); }
-    if (e.key === 'F6') { e.preventDefault(); activateTab('tutorial'); }
-
-    if (e.altKey && e.key === '1') { e.preventDefault(); el('product-type').value = 'pizza'; updateProductSelector(); }
-    if (e.altKey && e.key === '2') { e.preventDefault(); el('product-type').value = 'drink'; updateProductSelector(); }
-    if (e.altKey && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      if (el('product-type').value !== 'pizza') return;
-      el('two-flavors').checked = !el('two-flavors').checked;
-      handleTwoFlavorsToggle();
-    }
-    if (e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); el('pizza-order-size').value = 'broto'; }
-    if (e.altKey && e.key.toLowerCase() === 'g') { e.preventDefault(); el('pizza-order-size').value = 'grande'; }
-
-    if (e.ctrlKey && !e.shiftKey && e.key === '1') { e.preventDefault(); el('product-type').focus(); }
-    if (e.ctrlKey && !e.shiftKey && e.key === '2') { e.preventDefault(); el('product-id').focus(); }
-    if (e.ctrlKey && !e.shiftKey && e.key === '3') {
-      e.preventDefault();
-      if (!el('half-composition-panel').classList.contains('hidden')) el('half-flavor-two').focus();
-    }
-    if (e.ctrlKey && !e.shiftKey && e.key === '4') { e.preventDefault(); el('product-qty').focus(); }
-
-    if (e.ctrlKey && !e.shiftKey && e.key === 'Enter') { e.preventDefault(); addOrderItem(); }
-    if (e.ctrlKey && e.shiftKey && e.key === 'Enter') { e.preventDefault(); el('sale-form').requestSubmit(); }
-  });
-}
-
-function adjustSaleTypeFields() {
-  const t = el('sale-type').value;
-  el('address-wrap').classList.toggle('hidden', t !== 'Delivery');
-  el('phone-wrap').classList.toggle('hidden', t !== 'Delivery');
-  el('table-wrap').classList.toggle('hidden', t !== 'Mesa');
-}
-
-function updateProductSelector() {
-  const type = el('product-type').value;
-  const source = type === 'pizza' ? db.produtos.pizzas : db.produtos.bebidas;
-  const selectedSize = el('pizza-order-size').value;
-
-  if (type === 'pizza') {
-    const labelSize = selectedSize === 'broto' ? 'Broto' : 'Grande';
-    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">#${p.numero} ${escapeHtml(p.nome)} (${labelSize} ${brl(getPizzaPrice(p, selectedSize))})</option>`).join('');
-  } else {
-    el('product-id').innerHTML = source.map((p) => `<option value="${p.id}">${escapeHtml(p.nome)} - ${brl(p.preco)}</option>`).join('');
-    el('two-flavors').checked = false;
-    halfFlavorState.configured = false;
   }
 
-  el('sale-edge').innerHTML = db.produtos.bordas.map((b) => `<option value="${b.id}">Borda: ${escapeHtml(b.nome)} (+${brl(b.preco)})</option>`).join('');
-  el('sale-extra').innerHTML = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">Extra: ${escapeHtml(a.nome)} (+${brl(getExtraWholePrice(a))})</option>`).join('');
-  const pizzaOptions = type === 'pizza';
-  el('two-flavors-wrap').classList.toggle('hidden', !pizzaOptions);
-  if (!pizzaOptions) closeHalfFlavorModal();
-  el('pizza-order-size').disabled = !pizzaOptions;
-  el('pizza-order-size').classList.toggle('hidden', !pizzaOptions);
-  el('sale-edge').disabled = !pizzaOptions;
-  el('sale-extra').disabled = !pizzaOptions;
-}
+  if (atendimentoAtual === "balcao") {
+    cliente = document.getElementById("balcaoNome").value.trim();
 
-function showToast(message) {
-  const toast = el('toast');
-  toast.textContent = message;
-  toast.classList.remove('hidden');
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.add('hidden'), 2400);
-}
-
-function bindHalfFlavorModal() {
-  el('half-flavor-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    halfFlavorState.sabor1 = el('half-flavor-one').value;
-    halfFlavorState.sabor2 = el('half-flavor-two').value;
-    halfFlavorState.tamanho = el('half-flavor-size').value;
-    halfFlavorState.bordaId = el('half-flavor-edge').value;
-    halfFlavorState.adicionalInteiroId = el('half-extra-whole').value;
-    halfFlavorState.adicionalMetadeId = el('half-extra-half').value;
-    halfFlavorState.obs = el('half-flavor-note').value.trim();
-    halfFlavorState.configured = true;
-    el('pizza-order-size').value = halfFlavorState.tamanho;
-    el('sale-edge').value = halfFlavorState.bordaId;
-    closeHalfFlavorModal();
-    showToast('Pizza meio a meio configurada.');
-  });
-  el('half-flavor-cancel').addEventListener('click', () => {
-    el('two-flavors').checked = false;
-    halfFlavorState.configured = false;
-    closeHalfFlavorModal();
-  });
-}
-
-function handleTwoFlavorsToggle() {
-  const enabled = el('two-flavors').checked;
-  if (!enabled) {
-    halfFlavorState.configured = false;
-    closeHalfFlavorModal();
-    return;
-  }
-  if (el('product-type').value !== 'pizza') {
-    el('two-flavors').checked = false;
-    showToast('Meio a meio só está disponível para pizza.');
-    return;
-  }
-  openHalfFlavorModal();
-}
-
-function openHalfFlavorModal() {
-  const pizzas = db.produtos.pizzas;
-  if (!pizzas.length) {
-    el('two-flavors').checked = false;
-    showToast('Cadastre ao menos 1 pizza antes de usar meio a meio.');
-    return;
-  }
-  const pizzaOptions = pizzas.map((p) => `<option value="${p.id}">#${p.numero} ${escapeHtml(p.nome)}</option>`).join('');
-  const edgeOptions = db.produtos.bordas.map((b) => `<option value="${b.id}">${escapeHtml(b.nome)}</option>`).join('');
-  const extraOptionsWhole = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">${escapeHtml(a.nome)} (+${brl(getExtraWholePrice(a))})</option>`).join('');
-  const extraOptionsHalf = '<option value="">Sem adicional</option>' + db.produtos.adicionais.map((a) => `<option value="${a.id}">${escapeHtml(a.nome)} (+${brl(getExtraHalfPrice(a))})</option>`).join('');
-  el('half-flavor-one').innerHTML = pizzaOptions;
-  el('half-flavor-two').innerHTML = pizzaOptions;
-  el('half-flavor-edge').innerHTML = edgeOptions || '<option value="">Sem borda</option>';
-  el('half-extra-whole').innerHTML = extraOptionsWhole;
-  el('half-extra-half').innerHTML = extraOptionsHalf;
-  el('half-flavor-size').value = el('pizza-order-size').value;
-  el('half-flavor-one').value = halfFlavorState.sabor1 || el('product-id').value || pizzas[0].id;
-  el('half-flavor-two').value = halfFlavorState.sabor2 || el('product-id').value || pizzas[0].id;
-  el('half-flavor-edge').value = halfFlavorState.bordaId || db.produtos.bordas[0]?.id || '';
-  el('half-extra-whole').value = halfFlavorState.adicionalInteiroId || '';
-  el('half-extra-half').value = halfFlavorState.adicionalMetadeId || '';
-  el('half-flavor-note').value = halfFlavorState.obs || '';
-  el('half-composition-panel').classList.remove('hidden');
-}
-
-function closeHalfFlavorModal() {
-  el('half-composition-panel').classList.add('hidden');
-}
-
-function addOrderItem() {
-  if (!db.caixa?.aberto) return alert('Abra o caixa antes de vender.');
-  const type = el('product-type').value;
-  const qty = Number(el('product-qty').value) || 1;
-  const source = type === 'pizza' ? db.produtos.pizzas : db.produtos.bebidas;
-  const product = source.find((x) => x.id === el('product-id').value);
-  if (!product) return;
-
-  let totalUnit = 0;
-  const item = { tipo: type, nome: product.nome, qtd: qty, base: 0, borda: null, adicional: null };
-
-  if (type === 'pizza') {
-    const isHalf = el('two-flavors').checked;
-    if (isHalf && !halfFlavorState.configured) {
-      openHalfFlavorModal();
-      showToast('Configure os sabores no popup para continuar.');
+    if (!cliente) {
+      alert("Informe o nome do cliente.");
       return;
     }
-    const firstFlavorId = isHalf ? halfFlavorState.sabor1 : product.id;
-    const secondFlavorId = isHalf ? halfFlavorState.sabor2 : '';
-    const firstFlavor = source.find((x) => x.id === firstFlavorId) || product;
-    const secondFlavor = secondFlavorId ? source.find((x) => x.id === secondFlavorId) : null;
-    const pizzaSize = el('pizza-order-size').value;
-    const sizeForCalc = isHalf ? halfFlavorState.tamanho : pizzaSize;
-    const firstPrice = getPizzaPrice(firstFlavor, sizeForCalc);
-    const secondPrice = secondFlavor ? getPizzaPrice(secondFlavor, sizeForCalc) : 0;
-    const pizzaBase = Math.max(firstPrice, secondPrice);
-    totalUnit = pizzaBase;
-    item.tamanho = sizeForCalc === 'broto' ? 'Broto' : 'Grande';
-    item.nome = secondFlavor ? `${firstFlavor.nome} / ${secondFlavor.nome}` : firstFlavor.nome;
-    item.base = pizzaBase;
-
-    const edgeId = isHalf ? halfFlavorState.bordaId : el('sale-edge').value;
-    const borda = db.produtos.bordas.find((x) => x.id === edgeId);
-    const adicional = db.produtos.adicionais.find((x) => x.id === el('sale-extra').value);
-    if (borda) { totalUnit += Number(borda.preco); item.borda = borda.nome; }
-    if (isHalf) {
-      const adicionalInteiro = db.produtos.adicionais.find((x) => x.id === halfFlavorState.adicionalInteiroId);
-      const adicionalMetade = db.produtos.adicionais.find((x) => x.id === halfFlavorState.adicionalMetadeId);
-      if (adicionalInteiro) {
-        totalUnit += getExtraWholePrice(adicionalInteiro);
-        item.adicional = adicionalInteiro.nome;
-      }
-      if (adicionalMetade) {
-        const metadeValor = getExtraHalfPrice(adicionalMetade);
-        totalUnit += metadeValor;
-        item.adicionalMetade = `${adicionalMetade.nome} (1/2)`;
-      }
-    } else if (adicional) {
-      totalUnit += getExtraWholePrice(adicional);
-      item.adicional = adicional.nome;
-    }
-    if (isHalf && halfFlavorState.obs) item.obs = halfFlavorState.obs;
-    item.total = totalUnit * qty;
-  } else {
-    totalUnit = Number(product.preco);
-    item.base = totalUnit;
-    item.total = totalUnit * qty;
   }
 
-  session.carrinho.push(item);
-  renderOrder();
-}
-
-function onOrderListAction(e) {
-  const btn = e.target.closest('button[data-order-action]');
-  if (!btn) return;
-  const idx = Number(btn.dataset.index);
-  if (Number.isNaN(idx)) return;
-  if (btn.dataset.orderAction === 'remove') {
-    session.carrinho.splice(idx, 1);
-    renderOrder();
-  }
-  if (btn.dataset.orderAction === 'qty-plus') {
-    const current = session.carrinho[idx];
-    if (!current) return;
-    const unitPrice = current.total / current.qtd;
-    current.qtd += 1;
-    current.total = unitPrice * current.qtd;
-    renderOrder();
-  }
-  if (btn.dataset.orderAction === 'qty-minus') {
-    const current = session.carrinho[idx];
-    if (!current || current.qtd <= 1) return;
-    const unitPrice = current.total / current.qtd;
-    current.qtd -= 1;
-    current.total = unitPrice * current.qtd;
-    renderOrder();
-  }
-}
-
-function getOrderSummary() {
-  const subtotal = session.carrinho.reduce((s, i) => s + i.total, 0);
-  const fee = Number(el('order-fee')?.value || 0);
-  const discount = Number(el('order-discount')?.value || 0);
-  const total = Math.max(0, subtotal + fee - discount);
-  return { subtotal, fee, discount, total };
-}
-
-function validateSaleType() {
-  const t = el('sale-type').value;
-  if (t === 'Delivery') {
-    if (!el('customer-name').value.trim() || !el('customer-address').value.trim() || !el('customer-phone').value.trim()) {
-      return 'Delivery exige nome, endereço e telefone.';
-    }
-  }
-  if (t === 'Mesa' && !el('table-number').value) return 'Mesa exige número da mesa.';
-  if (t === 'Balcão' && !el('customer-name').value.trim()) return 'Balcão exige nome do cliente.';
-  return null;
-}
-
-function finishSale(e) {
-  e.preventDefault();
-  if (!db.caixa?.aberto) return alert('Caixa fechado.');
-  const err = validateSaleType();
-  if (err) return alert(err);
-  if (!session.carrinho.length) return alert('Adicione itens ao pedido.');
-
-  const { total, subtotal, fee, discount } = getOrderSummary();
-  const pagamento = el('payment-method').value;
-  const tipoVenda = el('sale-type').value;
-
-  if (tipoVenda === 'Mesa') {
-    const numeroMesa = Number(el('table-number').value);
-    let mesa = db.mesasAbertas.find((m) => m.numeroMesa === numeroMesa);
-    if (!mesa) {
-      mesa = {
-        id: crypto.randomUUID(),
-        numeroMesa,
-        cliente: el('customer-name').value || `Mesa ${numeroMesa}`,
-        abertoEm: now().toISOString(),
-        itens: [],
-        total: 0,
-        pagamento
-      };
-      db.mesasAbertas.push(mesa);
+  if (atendimentoAtual === "salao") {
+    if (!comandaSelecionada) {
+      alert("Selecione uma comanda.");
+      return;
     }
 
-    mesa.itens.push(...structuredClone(session.carrinho));
-    mesa.total += total;
-    mesa.pagamento = pagamento;
-    save();
-
-    session.carrinho = [];
-    e.target.reset();
-    el('order-fee').value = '0';
-    el('order-discount').value = '0';
-    el('two-flavors').checked = false;
-    halfFlavorState.configured = false;
-    closeHalfFlavorModal();
-    adjustSaleTypeFields();
-    updateProductSelector();
-    renderOrder();
-    renderOpenTables();
-    alert(`Itens adicionados à Mesa ${numeroMesa}.`);
-    return;
+    cliente = `Mesa ${comandaSelecionada.mesa} - ${comandaSelecionada.nome}`;
   }
 
-  const sale = {
-    id: crypto.randomUUID(),
-    data: now().toISOString(),
-    tipoVenda,
-    cliente: el('customer-name').value,
-    endereco: el('customer-address').value || '',
-    telefone: el('customer-phone').value || '',
-    itens: structuredClone(session.carrinho),
+  const pagamento = document.getElementById("pagamento").value;
+  const total = carrinho.reduce((soma, item) => soma + item.total, 0);
+
+  const pedido = {
+    numero: pedidos.length + 1,
+    tipo: atendimentoAtual,
+    cliente,
+    telefone,
+    endereco,
+    itens: [...carrinho],
     pagamento,
-    subtotal,
-    taxaEntrega: fee,
-    desconto: discount,
-    total
+    total,
+    status: "Finalizado"
   };
 
-  registerSale(sale);
-  printSaleReceipt(sale);
+  pedidos.push(pedido);
 
-  session.carrinho = [];
-  e.target.reset();
-  el('order-fee').value = '0';
-  el('order-discount').value = '0';
-  el('two-flavors').checked = false;
-  halfFlavorState.configured = false;
-  closeHalfFlavorModal();
-  adjustSaleTypeFields();
-  updateProductSelector();
-  renderOrder();
-  renderHistory();
-  alert('Venda finalizada!');
+  if (atendimentoAtual === "salao" && comandaSelecionada) {
+    comandaSelecionada.status = "Finalizada";
+  }
+
+  alert("Pedido finalizado com sucesso!");
+
+  limparDadosAtendimento();
+  voltarSelecaoAtendimento();
+  atualizarTelas();
 }
 
-function registerSale(sale) {
-  db.vendas.push(sale);
-  db.caixa.totalVendas += sale.total;
-  db.caixa.pagamentos[sale.pagamento] += sale.total;
-  save();
+function limparDadosAtendimento() {
+  const deliveryNome = document.getElementById("deliveryNome");
+  const deliveryTelefone = document.getElementById("deliveryTelefone");
+  const deliveryEndereco = document.getElementById("deliveryEndereco");
+  const balcaoNome = document.getElementById("balcaoNome");
+  const salaoMesa = document.getElementById("salaoMesa");
+  const salaoNome = document.getElementById("salaoNome");
+
+  if (deliveryNome) deliveryNome.value = "";
+  if (deliveryTelefone) deliveryTelefone.value = "";
+  if (deliveryEndereco) deliveryEndereco.value = "";
+  if (balcaoNome) balcaoNome.value = "";
+  if (salaoMesa) salaoMesa.value = "";
+  if (salaoNome) salaoNome.value = "";
 }
 
-function printSaleReceipt(sale) {
-  const lines = sale.itens.map((item) => {
-    const detail = [
-      item.tamanho,
-      item.borda,
-      item.adicional,
-      item.adicionalMetade,
-      item.obs ? `Obs: ${item.obs}` : ''
-    ].filter(Boolean).map(escapeHtml).join(' | ');
-    return `<tr>
-      <td>${item.qtd}x ${escapeHtml(item.nome)}${detail ? `<br><small>${detail}</small>` : ''}</td>
-      <td class="right">${brl(item.total)}</td>
-    </tr>`;
-  }).join('');
+/* CARDÁPIO DE PIZZAS */
 
-  const content = `<!doctype html>
-  <html lang="pt-BR">
-    <head>
-      <meta charset="UTF-8" />
-      <title>Comanda ${sale.id}</title>
-      <style>
-        body { font-family: 'Courier New', monospace; margin: 0; color: #000; font-size: 17px; font-weight: 800; }
-        .receipt { width: 72mm; margin: 0 auto; padding: 3mm; }
-        h1, p { margin: 0; font-weight: 800; }
-        .center { text-align: center; font-weight: 900; }
-        .muted { font-size: 15px; margin-top: 2px; font-weight: 800; }
-        hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 16px; font-weight: 800; }
-        td { vertical-align: top; padding: 4px 0; font-weight: 800; }
-        small { font-size: 14px; font-weight: 800; }
-        .right { text-align: right; white-space: nowrap; }
-        .total { font-weight: 900; font-size: 18px; }
-        @media print { @page { size: 80mm auto; margin: 2mm; } }
-      </style>
-    </head>
-    <body>
-      <div class="receipt">
-        <h1 class="center">PIZZARIA PRO</h1>
-        <p class="center muted">Comanda de venda</p>
-        <hr />
-        <p><strong>Data:</strong> ${new Date(sale.data).toLocaleString('pt-BR')}</p>
-        <p><strong>Tipo:</strong> ${escapeHtml(sale.tipoVenda)}</p>
-        <p><strong>Cliente:</strong> ${escapeHtml(sale.cliente || '-')}</p>
-        ${sale.endereco ? `<p><strong>Endereço:</strong> ${escapeHtml(sale.endereco)}</p>` : ''}
-        ${sale.telefone ? `<p><strong>Telefone:</strong> ${escapeHtml(sale.telefone)}</p>` : ''}
-        <hr />
-        <table>${lines}</table>
-        <hr />
-        <table>
-          <tr><td>Pagamento</td><td class="right">${escapeHtml(sale.pagamento)}</td></tr>
-          <tr><td class="total">TOTAL</td><td class="right total">${brl(sale.total)}</td></tr>
-        </table>
-        <hr />
-        <p class="center muted">Obrigado pela preferência!</p>
-      </div>
-      <script>
-        window.onload = () => {
-          window.print();
-          setTimeout(() => window.close(), 250);
-        };
-      </script>
-    </body>
-  </html>`;
+function cadastrarPizza() {
+  const numero = Number(document.getElementById("cadNumero").value);
+  const nome = document.getElementById("cadNome").value.trim();
+  const precoBroto = Number(document.getElementById("cadBroto").value);
+  const precoGrande = Number(document.getElementById("cadGrande").value);
+  const descricao = document.getElementById("cadDescricao").value.trim();
 
-  const printWindow = window.open('', '_blank', 'width=420,height=640');
-  if (!printWindow) {
-    alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-up.');
+  if (!numero || !nome || !precoBroto || !precoGrande) {
+    alert("Preencha número, nome, preço broto e preço grande.");
     return;
   }
-  printWindow.document.open();
-  printWindow.document.write(content);
-  printWindow.document.close();
-}
 
-function closeTable(tableId) {
-  const table = db.mesasAbertas.find((m) => m.id === tableId);
-  if (!table) return;
+  const numeroExiste = pizzas.some(pizza => pizza.numero === numero);
 
-  const sale = {
-    id: crypto.randomUUID(),
-    data: now().toISOString(),
-    tipoVenda: 'Mesa',
-    cliente: table.cliente || `Mesa ${table.numeroMesa}`,
-    endereco: '',
-    telefone: '',
-    itens: structuredClone(table.itens),
-    pagamento: table.pagamento,
-    total: table.total
-  };
+  if (numeroExiste) {
+    alert("Já existe uma pizza cadastrada com esse número.");
+    return;
+  }
 
-  registerSale(sale);
-  printSaleReceipt(sale);
-  db.mesasAbertas = db.mesasAbertas.filter((m) => m.id !== tableId);
-  save();
-  renderOpenTables();
-  renderHistory();
-}
-
-function bindHistory() {
-  el('close-cash').addEventListener('click', () => {
-    if (!db.caixa?.aberto) return alert('Não há caixa aberto.');
-    const fechamentoEm = now().toISOString();
-    const pedidosNoPeriodo = db.vendas.filter((v) => new Date(v.data) >= new Date(db.caixa.horaAbertura) && new Date(v.data) <= new Date(fechamentoEm));
-    const resumoFechamento = {
-      dataAbertura: db.caixa.horaAbertura,
-      dataFechamento: fechamentoEm,
-      trocoInicial: db.caixa.valorInicial,
-      quantidadePedidos: pedidosNoPeriodo.length,
-      totalVendas: db.caixa.totalVendas,
-      pagamentos: structuredClone(db.caixa.pagamentos),
-      totalFechamento: db.caixa.valorInicial + db.caixa.totalVendas
-    };
-    db.caixa.aberto = false;
-    db.caixa.horaFechamento = fechamentoEm;
-    save();
-    printCashCloseReport(resumoFechamento);
-    refreshAll();
-    alert('Caixa fechado. Vendas bloqueadas até nova abertura.');
+  pizzas.push({
+    numero,
+    nome,
+    descricao,
+    preco_broto: precoBroto,
+    preco_grande: precoGrande
   });
+
+  limparFormularioCadastro();
+  atualizarTelas();
+
+  alert("Pizza cadastrada com sucesso!");
 }
 
-function printCashCloseReport(resumo) {
-  const content = `<!doctype html>
-  <html lang="pt-BR">
-    <head>
-      <meta charset="UTF-8" />
-      <title>Fechamento de Caixa</title>
-      <style>
-        body { font-family: 'Courier New', monospace; margin: 0; color: #000; font-size: 16px; font-weight: 800; }
-        .receipt { width: 72mm; margin: 0 auto; padding: 3mm; }
-        h1, p { margin: 0; font-weight: 800; }
-        .center { text-align: center; }
-        .muted { font-size: 14px; margin-top: 2px; }
-        hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; font-size: 15px; }
-        td { vertical-align: top; padding: 3px 0; }
-        .right { text-align: right; white-space: nowrap; }
-        .total { font-size: 18px; font-weight: 900; }
-        @media print { @page { size: 80mm auto; margin: 2mm; } }
-      </style>
-    </head>
-    <body>
-      <div class="receipt">
-        <h1 class="center">FECHAMENTO DE CAIXA</h1>
-        <p class="center muted">PDV Pizzaria Pro</p>
-        <hr />
-        <p><strong>Abertura:</strong> ${new Date(resumo.dataAbertura).toLocaleString('pt-BR')}</p>
-        <p><strong>Fechamento:</strong> ${new Date(resumo.dataFechamento).toLocaleString('pt-BR')}</p>
-        <hr />
-        <table>
-          <tr><td>Troco inicial</td><td class="right">${brl(resumo.trocoInicial)}</td></tr>
-          <tr><td>Pedidos feitos</td><td class="right">${resumo.quantidadePedidos}</td></tr>
-          <tr><td>Total de vendas</td><td class="right">${brl(resumo.totalVendas)}</td></tr>
-          <tr><td>Dinheiro</td><td class="right">${brl(resumo.pagamentos.Dinheiro)}</td></tr>
-          <tr><td>Cartão</td><td class="right">${brl(resumo.pagamentos.Cartão)}</td></tr>
-          <tr><td>Pix</td><td class="right">${brl(resumo.pagamentos.Pix)}</td></tr>
-        </table>
-        <hr />
-        <table>
-          <tr><td class="total">TOTAL FECHAMENTO</td><td class="right total">${brl(resumo.totalFechamento)}</td></tr>
-        </table>
-        <hr />
-        <p class="center muted">Fechamento calculado automaticamente</p>
-      </div>
-      <script>
-        window.onload = () => {
-          window.print();
-          setTimeout(() => window.close(), 250);
-        };
-      </script>
-    </body>
-  </html>`;
+function limparFormularioCadastro() {
+  document.getElementById("cadNumero").value = "";
+  document.getElementById("cadNome").value = "";
+  document.getElementById("cadBroto").value = "";
+  document.getElementById("cadGrande").value = "";
+  document.getElementById("cadDescricao").value = "";
+}
 
-  const printWindow = window.open('', '_blank', 'width=420,height=640');
-  if (!printWindow) {
-    alert('Não foi possível abrir a janela de impressão do fechamento.');
+function editarPizza(numero) {
+  editandoPizza = numero;
+  renderizarCardapio();
+}
+
+function cancelarEdicaoPizza() {
+  editandoPizza = null;
+  renderizarCardapio();
+}
+
+function salvarEdicaoPizza(numero) {
+  const pizza = pizzas.find(item => item.numero === numero);
+
+  if (!pizza) {
+    alert("Pizza não encontrada.");
     return;
   }
-  printWindow.document.open();
-  printWindow.document.write(content);
-  printWindow.document.close();
-}
 
-function renderList(id, items, formatter) {
-  el(id).innerHTML = items.map((x) => `<li>${formatter(x)}</li>`).join('') || '<li>Nenhum item.</li>';
-}
+  const nome = document.getElementById(`editPizzaNome_${numero}`).value.trim();
+  const descricao = document.getElementById(`editPizzaDescricao_${numero}`).value.trim();
+  const precoBroto = Number(document.getElementById(`editPizzaBroto_${numero}`).value);
+  const precoGrande = Number(document.getElementById(`editPizzaGrande_${numero}`).value);
 
-function renderOrder() {
-  el('order-items').innerHTML = session.carrinho.map((x, index) => {
-    const pizzaInfo = x.tamanho ? ` (${escapeHtml(x.tamanho)})` : '';
-    const halfExtraInfo = x.adicionalMetade ? ` | ${escapeHtml(x.adicionalMetade)}` : '';
-    const obsInfo = x.obs ? ` | Obs: ${escapeHtml(x.obs)}` : '';
-    return `<li>
-      <span>${x.qtd}x ${escapeHtml(x.nome)}${pizzaInfo}${x.borda ? ` | ${escapeHtml(x.borda)}` : ''}${x.adicional ? ` | ${escapeHtml(x.adicional)}` : ''}${halfExtraInfo}${obsInfo} = ${brl(x.total)}</span>
-      <div class="order-item-actions">
-        <button type="button" data-order-action="qty-minus" data-index="${index}">-</button>
-        <button type="button" data-order-action="qty-plus" data-index="${index}">+</button>
-        <button type="button" class="danger" data-order-action="remove" data-index="${index}">Remover</button>
-      </div>
-    </li>`;
-  }).join('') || '<li>Nenhum item.</li>';
-  const { subtotal, fee, discount, total } = getOrderSummary();
-  el('order-subtotal').value = brl(subtotal);
-  el('order-total-display').value = brl(total);
-  el('order-total').textContent = brl(total);
-  if (Number.isNaN(fee)) el('order-fee').value = '0';
-  if (Number.isNaN(discount)) el('order-discount').value = '0';
-}
-
-function getRegisterCollection(type) {
-  const map = {
-    pizzas: db.produtos.pizzas,
-    adicionais: db.produtos.adicionais,
-    bordas: db.produtos.bordas,
-    bebidas: db.produtos.bebidas
-  };
-  return map[type];
-}
-
-function deleteRegisteredItem(type, id) {
-  const list = getRegisterCollection(type);
-  if (!list) return;
-  const index = list.findIndex((item) => item.id === id);
-  if (index < 0) return;
-  if (!confirm('Deseja excluir este item?')) return;
-  list.splice(index, 1);
-  save();
-  refreshAll();
-}
-
-function editRegisteredItem(type, id) {
-  const list = getRegisterCollection(type);
-  const item = list?.find((x) => x.id === id);
-  if (!item) return;
-
-  if (type === 'pizzas') {
-    const nome = prompt('Nome da pizza:', item.nome);
-    const numero = Number(prompt('Número da pizza:', String(item.numero)));
-    const broto = Number(prompt('Preço Broto:', String(item.broto)));
-    const grande = Number(prompt('Preço Grande:', String(item.grande)));
-    if (!nome || !numero || broto < 0 || grande < 0) return alert('Dados inválidos.');
-    item.nome = nome.trim();
-    item.numero = numero;
-    item.broto = broto;
-    item.grande = grande;
+  if (!nome || !precoBroto || !precoGrande) {
+    alert("Preencha nome, preço broto e preço grande.");
+    return;
   }
 
-  if (type === 'adicionais') {
-    const nome = prompt('Nome:', item.nome);
-    const precoInteira = Number(prompt('Preço inteira:', String(getExtraWholePrice(item))));
-    const precoMetade = Number(prompt('Preço meia pizza:', String(getExtraHalfPrice(item))));
-    if (!nome || precoInteira < 0 || precoMetade < 0) return alert('Dados inválidos.');
-    item.nome = nome.trim();
-    item.precoInteira = precoInteira;
-    item.precoMetade = precoMetade;
+  pizza.nome = nome;
+  pizza.descricao = descricao;
+  pizza.preco_broto = precoBroto;
+  pizza.preco_grande = precoGrande;
+
+  if (pizzaSelecionada && pizzaSelecionada.numero === numero) {
+    pizzaSelecionada = pizza;
+    document.getElementById("pizzaSelecionadaTexto").textContent = pizza.nome;
+    document.getElementById("pizzaSelecionadaInput").value = pizza.nome;
   }
 
-  if (type === 'bordas') {
-    const nome = prompt('Nome:', item.nome);
-    const preco = Number(prompt('Preço:', String(item.preco)));
-    if (!nome || preco < 0) return alert('Dados inválidos.');
-    item.nome = nome.trim();
-    item.preco = preco;
+  editandoPizza = null;
+  atualizarTelas();
+
+  alert("Pizza alterada com sucesso!");
+}
+
+function excluirPizza(numero) {
+  const confirmar = confirm("Deseja excluir esta pizza?");
+
+  if (!confirmar) return;
+
+  pizzas = pizzas.filter(pizza => pizza.numero !== numero);
+
+  if (pizzaSelecionada && pizzaSelecionada.numero === numero) {
+    pizzaSelecionada = null;
+    document.getElementById("pizzaSelecionadaTexto").textContent = "Nenhuma pizza";
+    document.getElementById("pizzaSelecionadaInput").value = "";
   }
 
-  if (type === 'bebidas') {
-    const nome = prompt('Nome da bebida:', item.nome);
-    const tipo = prompt('Tipo da bebida:', item.tipo);
-    const preco = Number(prompt('Preço:', String(item.preco)));
-    if (!nome || !tipo || preco < 0) return alert('Dados inválidos.');
-    item.nome = nome.trim();
-    item.tipo = tipo.trim();
-    item.preco = preco;
+  atualizarTelas();
+}
+
+function renderizarCardapio() {
+  const tabela = document.getElementById("tabelaCardapio");
+  const qtd = document.getElementById("qtdPizzasTexto");
+
+  if (!tabela || !qtd) return;
+
+  tabela.innerHTML = "";
+
+  pizzas.forEach(pizza => {
+    const tr = document.createElement("tr");
+
+    if (editandoPizza === pizza.numero) {
+      tr.innerHTML = `
+        <td>${pizza.numero}</td>
+
+        <td>
+          <div class="campo">
+            <label>Nome</label>
+            <input id="editPizzaNome_${pizza.numero}" type="text" value="${pizza.nome}">
+          </div>
+
+          <div class="campo" style="margin-top:8px;">
+            <label>Descrição</label>
+            <input id="editPizzaDescricao_${pizza.numero}" type="text" value="${pizza.descricao || ""}">
+          </div>
+        </td>
+
+        <td>
+          <input
+            id="editPizzaBroto_${pizza.numero}"
+            type="number"
+            step="0.01"
+            value="${pizza.preco_broto}"
+            style="width:110px; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
+          >
+        </td>
+
+        <td>
+          <input
+            id="editPizzaGrande_${pizza.numero}"
+            type="number"
+            step="0.01"
+            value="${pizza.preco_grande}"
+            style="width:110px; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
+          >
+        </td>
+
+        <td>
+          <button class="btn btn-green" onclick="salvarEdicaoPizza(${pizza.numero})">
+            Salvar
+          </button>
+
+          <button class="btn btn-gray" onclick="cancelarEdicaoPizza()" style="margin-top:8px;">
+            Cancelar
+          </button>
+        </td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>${pizza.numero}</td>
+
+        <td>
+          <strong>${pizza.nome}</strong><br>
+          <small>${pizza.descricao || ""}</small>
+        </td>
+
+        <td>${dinheiro(pizza.preco_broto)}</td>
+        <td>${dinheiro(pizza.preco_grande)}</td>
+
+        <td>
+          <button class="btn btn-dark" onclick="editarPizza(${pizza.numero})">
+            Editar
+          </button>
+
+          <button class="btn btn-gray" onclick="excluirPizza(${pizza.numero})" style="margin-top:8px;">
+            Excluir
+          </button>
+        </td>
+      `;
+    }
+
+    tabela.appendChild(tr);
+  });
+
+  qtd.textContent = `${pizzas.length} pizzas`;
+}
+
+/* CARDÁPIO DE BEBIDAS */
+
+function cadastrarBebida() {
+  const codigo = Number(document.getElementById("bebCodigo").value);
+  const nome = document.getElementById("bebNome").value.trim();
+  const preco = Number(document.getElementById("bebPreco").value);
+  const categoria = document.getElementById("bebCategoria").value.trim();
+
+  if (!codigo || !nome || !preco || !categoria) {
+    alert("Preencha código, nome, preço e categoria da bebida.");
+    return;
   }
 
-  save();
-  refreshAll();
+  const codigoExiste = bebidas.some(bebida => bebida.codigo === codigo);
+
+  if (codigoExiste) {
+    alert("Já existe uma bebida cadastrada com esse código.");
+    return;
+  }
+
+  bebidas.push({
+    codigo,
+    nome,
+    categoria,
+    preco
+  });
+
+  limparFormularioBebida();
+  atualizarTelas();
+
+  alert("Bebida cadastrada com sucesso!");
 }
 
-function renderRegisterLists() {
-  const withActions = (label, type, id) =>
-    `${label}
-      <button type="button" data-action="edit" data-type="${type}" data-id="${id}">Editar</button>
-      <button type="button" class="danger" data-action="delete" data-type="${type}" data-id="${id}">Excluir</button>`;
-
-  renderList('pizza-list', db.produtos.pizzas, (p) => withActions(`#${p.numero} ${escapeHtml(p.nome)} | Broto ${brl(getPizzaPrice(p, 'broto'))} | Grande ${brl(getPizzaPrice(p, 'grande'))}`, 'pizzas', p.id));
-  renderList('extra-list', db.produtos.adicionais, (a) => withActions(`${escapeHtml(a.nome)} | Inteira ${brl(getExtraWholePrice(a))} | Meia ${brl(getExtraHalfPrice(a))}`, 'adicionais', a.id));
-  renderList('edge-list', db.produtos.bordas, (b) => withActions(`${escapeHtml(b.nome)} - ${brl(b.preco)}`, 'bordas', b.id));
-  renderList('drink-list', db.produtos.bebidas, (d) => withActions(`${escapeHtml(d.nome)} (${escapeHtml(d.tipo)}) - ${brl(d.preco)}`, 'bebidas', d.id));
+function limparFormularioBebida() {
+  document.getElementById("bebCodigo").value = "";
+  document.getElementById("bebNome").value = "";
+  document.getElementById("bebPreco").value = "";
+  document.getElementById("bebCategoria").value = "";
 }
 
-function renderShortcutTutorial() {
-  el('shortcut-list').innerHTML = SHORTCUTS.map((s) => `
-    <li class="shortcut-item">
-      <strong>${s.combo}</strong>
-      <span>${s.action}</span>
-      <small>${s.detail}</small>
-    </li>
-  `).join('');
+function editarBebida(codigo) {
+  editandoBebida = codigo;
+  renderizarBebidas();
 }
 
-function renderPizzaCatalog() {
-  const grid = el('pizza-catalog-grid');
-  if (!grid) return;
-  const term = el('catalog-search')?.value?.trim().toLowerCase() || '';
-  const pizzas = db.produtos.pizzas
-    .filter((p) => !term || String(p.numero).includes(term) || p.nome.toLowerCase().includes(term))
-    .sort((a, b) => Number(a.numero) - Number(b.numero));
+function cancelarEdicaoBebida() {
+  editandoBebida = null;
+  renderizarBebidas();
+}
 
-  grid.innerHTML = pizzas.map((p) => `
-    <article class="pizza-catalog-item">
-      <div class="pizza-catalog-thumb" aria-hidden="true">🍕</div>
-      <span class="num">#${p.numero}</span>
-      <strong>${escapeHtml(p.nome)}</strong>
-      <small>Pizza artesanal, molho da casa.</small>
-      <p>Broto ${brl(getPizzaPrice(p, 'broto'))} | Grande ${brl(getPizzaPrice(p, 'grande'))}</p>
-      <button type="button" data-pizza-id="${p.id}">Adicionar</button>
-    </article>
-  `).join('');
+function salvarEdicaoBebida(codigo) {
+  const bebida = bebidas.find(item => item.codigo === codigo);
 
-  grid.querySelectorAll('[data-pizza-id]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      el('product-type').value = 'pizza';
-      updateProductSelector();
-      el('product-id').value = btn.dataset.pizzaId;
+  if (!bebida) {
+    alert("Bebida não encontrada.");
+    return;
+  }
+
+  const nome = document.getElementById(`editBebidaNome_${codigo}`).value.trim();
+  const categoria = document.getElementById(`editBebidaCategoria_${codigo}`).value.trim();
+  const preco = Number(document.getElementById(`editBebidaPreco_${codigo}`).value);
+
+  if (!nome || !categoria || !preco) {
+    alert("Preencha nome, categoria e preço da bebida.");
+    return;
+  }
+
+  bebida.nome = nome;
+  bebida.categoria = categoria;
+  bebida.preco = preco;
+
+  editandoBebida = null;
+  atualizarTelas();
+
+  alert("Bebida alterada com sucesso!");
+}
+
+function excluirBebida(codigo) {
+  const confirmar = confirm("Deseja excluir esta bebida?");
+
+  if (!confirmar) return;
+
+  bebidas = bebidas.filter(bebida => bebida.codigo !== codigo);
+  atualizarTelas();
+}
+
+function renderizarBebidas() {
+  const tabela = document.getElementById("tabelaBebidas");
+  const qtd = document.getElementById("qtdBebidasTexto");
+
+  if (!tabela || !qtd) return;
+
+  tabela.innerHTML = "";
+
+  bebidas.forEach(bebida => {
+    const tr = document.createElement("tr");
+
+    if (editandoBebida === bebida.codigo) {
+      tr.innerHTML = `
+        <td>${bebida.codigo}</td>
+
+        <td>
+          <input
+            id="editBebidaNome_${bebida.codigo}"
+            type="text"
+            value="${bebida.nome}"
+            style="width:180px; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
+          >
+        </td>
+
+        <td>
+          <input
+            id="editBebidaCategoria_${bebida.codigo}"
+            type="text"
+            value="${bebida.categoria}"
+            style="width:150px; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
+          >
+        </td>
+
+        <td>
+          <input
+            id="editBebidaPreco_${bebida.codigo}"
+            type="number"
+            step="0.01"
+            value="${bebida.preco}"
+            style="width:110px; padding:10px; border:1px solid #e5e7eb; border-radius:10px;"
+          >
+        </td>
+
+        <td>
+          <button class="btn btn-green" onclick="salvarEdicaoBebida(${bebida.codigo})">
+            Salvar
+          </button>
+
+          <button class="btn btn-gray" onclick="cancelarEdicaoBebida()" style="margin-top:8px;">
+            Cancelar
+          </button>
+        </td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>${bebida.codigo}</td>
+        <td><strong>${bebida.nome}</strong></td>
+        <td>${bebida.categoria}</td>
+        <td>${dinheiro(bebida.preco)}</td>
+
+        <td>
+          <button class="btn btn-dark" onclick="editarBebida(${bebida.codigo})">
+            Editar
+          </button>
+
+          <button class="btn btn-gray" onclick="excluirBebida(${bebida.codigo})" style="margin-top:8px;">
+            Excluir
+          </button>
+        </td>
+      `;
+    }
+
+    tabela.appendChild(tr);
+  });
+
+  qtd.textContent = `${bebidas.length} bebidas`;
+}
+
+/* PEDIDOS E RELATÓRIO */
+
+function nomeTipo(tipo) {
+  if (tipo === "delivery") return "Delivery";
+  if (tipo === "salao") return "Salão";
+  if (tipo === "balcao") return "Balcão";
+  return tipo;
+}
+
+function renderizarPedidos() {
+  const tabela = document.getElementById("tabelaPedidos");
+  const totalPedidosTexto = document.getElementById("totalPedidosTexto");
+
+  if (!tabela || !totalPedidosTexto) return;
+
+  tabela.innerHTML = "";
+
+  pedidos.forEach(pedido => {
+    const tr = document.createElement("tr");
+    const nomesItens = pedido.itens.map(item => {
+      return `${item.quantidade}x ${item.nome}`;
+    }).join("<br>");
+
+    tr.innerHTML = `
+      <td>#${pedido.numero}</td>
+      <td>${nomeTipo(pedido.tipo)}</td>
+      <td>
+        <strong>${pedido.cliente}</strong>
+        ${pedido.telefone ? `<br><small>${pedido.telefone}</small>` : ""}
+        ${pedido.endereco ? `<br><small>${pedido.endereco}</small>` : ""}
+      </td>
+      <td>${nomesItens}</td>
+      <td>${pedido.pagamento}</td>
+      <td>${dinheiro(pedido.total)}</td>
+      <td><span class="badge badge-green">${pedido.status}</span></td>
+    `;
+
+    tabela.appendChild(tr);
+  });
+
+  totalPedidosTexto.textContent = `${pedidos.length} pedidos`;
+}
+
+function renderizarRelatorio() {
+  const tabela = document.getElementById("tabelaRelatorio");
+
+  if (!tabela) return;
+
+  tabela.innerHTML = "";
+
+  let faturamento = 0;
+  let itensVendidos = 0;
+
+  pedidos.forEach(pedido => {
+    faturamento += pedido.total;
+
+    pedido.itens.forEach(item => {
+      itensVendidos += item.quantidade;
     });
+
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>#${pedido.numero}</td>
+      <td>${nomeTipo(pedido.tipo)}</td>
+      <td>${pedido.pagamento}</td>
+      <td>${dinheiro(pedido.total)}</td>
+      <td><span class="badge badge-green">${pedido.status}</span></td>
+    `;
+
+    tabela.appendChild(tr);
   });
+
+  const ticketMedio = pedidos.length > 0 ? faturamento / pedidos.length : 0;
+
+  document.getElementById("relVendas").textContent = pedidos.length;
+  document.getElementById("relFaturamento").textContent = dinheiro(faturamento);
+  document.getElementById("relTicket").textContent = dinheiro(ticketMedio);
+  document.getElementById("relItens").textContent = itensVendidos;
 }
 
-function renderOpenTables() {
-  const wrap = el('open-tables-list');
-  if (!db.mesasAbertas.length) {
-    wrap.innerHTML = '<p>Nenhuma mesa aberta no momento.</p>';
-    return;
-  }
+/* CONFIGURAÇÕES */
 
-  wrap.innerHTML = db.mesasAbertas.map((mesa) => `
-    <article class="table-card">
-      <h3>Mesa ${mesa.numeroMesa}</h3>
-      <p>Cliente: ${escapeHtml(mesa.cliente)}</p>
-      <p>Aberta em: ${new Date(mesa.abertoEm).toLocaleString('pt-BR')}</p>
-      <ul>
-        ${mesa.itens.map((item) => `<li>${item.qtd}x ${escapeHtml(item.nome)}${item.tamanho ? ` (${escapeHtml(item.tamanho)})` : ''} - ${brl(item.total)}</li>`).join('')}
-      </ul>
-      <p><strong>Total: ${brl(mesa.total)}</strong></p>
-      <p>Pagamento: ${escapeHtml(mesa.pagamento)}</p>
-      <button type="button" class="danger" data-close-table="${mesa.id}">Fechar mesa</button>
-    </article>
-  `).join('');
-
-  wrap.querySelectorAll('[data-close-table]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (!db.caixa?.aberto) return alert('Abra o caixa para fechar mesa.');
-      closeTable(btn.dataset.closeTable);
-      alert('Mesa fechada com sucesso!');
-    });
-  });
+function salvarConfig() {
+  alert("Configurações salvas.");
 }
 
-function renderHistory() {
-  if (!db.caixa) {
-    el('history-summary').textContent = 'Sem caixa aberto/fechado ainda.';
-    el('sales-history').innerHTML = '';
-    return;
-  }
-
-  const c = db.caixa;
-  const abertoEm = new Date(c.horaAbertura).toLocaleString('pt-BR');
-  const fechadoEm = c.horaFechamento ? new Date(c.horaFechamento).toLocaleString('pt-BR') : 'Em aberto';
-  el('history-summary').innerHTML = `
-    <p>Data: ${new Date(c.data).toLocaleDateString('pt-BR')}</p>
-    <p>Hora abertura: ${abertoEm}</p>
-    <p>Hora fechamento: ${fechadoEm}</p>
-    <p>Total vendas: ${brl(c.totalVendas)}</p>
-    <p>Dinheiro: ${brl(c.pagamentos.Dinheiro)} | Cartão: ${brl(c.pagamentos.Cartão)} | Pix: ${brl(c.pagamentos.Pix)}</p>
-    <p><strong>Total geral: ${brl(c.totalVendas + c.valorInicial)}</strong></p>`;
-
-  renderList('sales-history', db.vendas.slice().reverse(), (v) =>
-    `${new Date(v.data).toLocaleString('pt-BR')} - ${escapeHtml(v.tipoVenda)} - ${escapeHtml(v.cliente)} - ${escapeHtml(v.pagamento)} - ${brl(v.total)}`);
+function abrirCaixa() {
+  document.querySelector(".status-caixa").textContent = "Caixa Aberto";
+  document.querySelector(".status-caixa").style.background = "#dcfce7";
+  document.querySelector(".status-caixa").style.color = "#166534";
 }
 
-function refreshAll() {
-  fillDateTime();
-  el('cash-status').textContent = db.caixa?.aberto ? 'Caixa aberto ✅' : 'Caixa fechado 🔒';
-  renderRegisterLists();
-  adjustSaleTypeFields();
-  updateProductSelector();
-  renderOrder();
-  renderPizzaCatalog();
-  renderOpenTables();
-  renderShortcutTutorial();
-  renderHistory();
+function fecharCaixa() {
+  document.querySelector(".status-caixa").textContent = "Caixa Fechado";
+  document.querySelector(".status-caixa").style.background = "#fee2e2";
+  document.querySelector(".status-caixa").style.color = "#991b1b";
 }
 
-init();
+/* ATUALIZAÇÃO GERAL */
+
+function atualizarTelas() {
+  renderizarProdutos();
+  preencherSaboresMeioMeio();
+  renderizarCardapio();
+  renderizarBebidas();
+  renderizarPedidos();
+  renderizarRelatorio();
+  renderizarComandas();
+  atualizarAbasProduto();
+}
+
+atualizarTelas();

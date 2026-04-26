@@ -1,293 +1,558 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDV Pizzaria Local</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <main>
-      <section id="login-screen" class="card">
-        <h1>Login do Sistema</h1>
-        <form id="login-form" class="grid-form">
-          <label>
-            Usuário
-            <input id="login-user" type="text" required />
-          </label>
-          <label>
-            Senha
-            <input id="login-pass" type="password" required />
-          </label>
-          <button type="submit">Entrar</button>
-        </form>
-        <p class="hint">Usuário padrão: <strong>admin</strong> | Senha: <strong>1234</strong></p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDV Pizzaria</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">🍕</div>
+        <div>
+          <h1>Pizza PDV</h1>
+          <span>Barra Funda Pizza e Vinho</span>
+        </div>
+      </div>
+
+      <nav class="menu">
+        <button class="active" onclick="abrirPagina('pdv', this)">PDV</button>
+        <button onclick="abrirPagina('pedidos', this)">Pedidos</button>
+        <button onclick="abrirPagina('cardapio', this)">Cardápio</button>
+        <button onclick="abrirPagina('relatorio', this)">Relatório</button>
+        <button onclick="abrirPagina('config', this)">Configurações</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        Sistema PDV<br />
+        Delivery, Salão e Balcão
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="tituloPagina">PDV</h2>
+          <p id="subtituloPagina">Escolha o tipo de atendimento para iniciar o pedido.</p>
+        </div>
+
+        <div class="status-caixa">Caixa Aberto</div>
+      </header>
+
+      <!-- PDV -->
+      <section id="pdv" class="page active">
+
+        <!-- ESCOLHA DO TIPO DE VENDA -->
+        <div id="selecaoAtendimento" class="atendimento-grid">
+          <button class="atendimento-card delivery" onclick="selecionarAtendimento('delivery')">
+            <div class="atendimento-icon">🛵</div>
+            <h3>Delivery</h3>
+            <p>Pedido com nome, telefone, endereço, pizzas e bebidas.</p>
+          </button>
+
+          <button class="atendimento-card salao" onclick="selecionarAtendimento('salao')">
+            <div class="atendimento-icon">🍽️</div>
+            <h3>Salão</h3>
+            <p>Controle de comandas abertas por número da mesa.</p>
+          </button>
+
+          <button class="atendimento-card balcao" onclick="selecionarAtendimento('balcao')">
+            <div class="atendimento-icon">🧾</div>
+            <h3>Balcão</h3>
+            <p>Pedido rápido com nome do cliente, pizzas e bebidas.</p>
+          </button>
+        </div>
+
+        <!-- ÁREA DO PEDIDO -->
+        <div id="areaPedido" class="area-pedido hidden">
+
+          <div class="pedido-header">
+            <button class="btn btn-gray" onclick="voltarSelecaoAtendimento()">← Voltar</button>
+            <div>
+              <h3 id="tituloAtendimento">Novo Pedido</h3>
+              <p id="descricaoAtendimento">Selecione os itens do pedido.</p>
+            </div>
+          </div>
+
+          <!-- DELIVERY -->
+          <div id="formDelivery" class="card form-atendimento hidden">
+            <div class="card-title">
+              <h3>Dados do Delivery</h3>
+              <span>🛵 Entrega</span>
+            </div>
+
+            <div class="form-grid">
+              <div class="campo">
+                <label>Nome do cliente</label>
+                <input id="deliveryNome" type="text" placeholder="Ex: Lucas" />
+              </div>
+
+              <div class="campo">
+                <label>Telefone</label>
+                <input id="deliveryTelefone" type="text" placeholder="Ex: (11) 99999-9999" />
+              </div>
+
+              <div class="campo full">
+                <label>Endereço</label>
+                <input id="deliveryEndereco" type="text" placeholder="Rua, número, bairro, complemento..." />
+              </div>
+            </div>
+          </div>
+
+          <!-- SALÃO -->
+          <div id="formSalao" class="card form-atendimento hidden">
+            <div class="card-title">
+              <h3>Comandas do Salão</h3>
+              <span>🍽️ Mesas</span>
+            </div>
+
+            <div class="form-grid">
+              <div class="campo">
+                <label>Número da mesa</label>
+                <input id="salaoMesa" type="number" placeholder="Ex: 5" />
+              </div>
+
+              <div class="campo">
+                <label>Nome na comanda</label>
+                <input id="salaoNome" type="text" placeholder="Opcional" />
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn btn-primary" onclick="abrirOuSelecionarComanda()">
+                Abrir / Selecionar Comanda
+              </button>
+            </div>
+
+            <div class="comandas-box">
+              <h4>Comandas abertas</h4>
+              <div id="listaComandas" class="lista-comandas"></div>
+            </div>
+          </div>
+
+          <!-- BALCÃO -->
+          <div id="formBalcao" class="card form-atendimento hidden">
+            <div class="card-title">
+              <h3>Dados do Balcão</h3>
+              <span>🧾 Retirada</span>
+            </div>
+
+            <div class="form-grid">
+              <div class="campo full">
+                <label>Nome do cliente</label>
+                <input id="balcaoNome" type="text" placeholder="Ex: Lucas" />
+              </div>
+            </div>
+          </div>
+
+          <!-- MONTAGEM DO PEDIDO -->
+          <div id="montagemPedido" class="grid-pdv hidden">
+            <div class="card">
+              <div class="card-title">
+                <h3>Produtos</h3>
+                <span>🍕 Pizzas e Bebidas</span>
+              </div>
+
+              <div class="produto-tabs">
+                <button
+                  id="tabPizzas"
+                  class="produto-tab active"
+                  onclick="trocarCategoriaProduto('pizzas')"
+                >
+                  🍕 Pizzas
+                </button>
+
+                <button
+                  id="tabBebidas"
+                  class="produto-tab"
+                  onclick="trocarCategoriaProduto('bebidas')"
+                >
+                  🥤 Bebidas
+                </button>
+              </div>
+
+              <input
+                class="search"
+                id="buscaProduto"
+                type="text"
+                placeholder="Buscar por número ou nome da pizza..."
+                oninput="renderizarProdutos()"
+              />
+
+              <div class="produtos" id="listaProdutos"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">
+                <h3>Pedido Atual</h3>
+                <span id="pizzaSelecionadaTexto">Nenhuma pizza</span>
+              </div>
+
+              <div class="pedido-box">
+                <div class="campo">
+                  <label>Tipo da pizza</label>
+                  <select id="tipoPizza" onchange="atualizarTipoPizza()">
+                    <option value="inteira">Pizza inteira</option>
+                    <option value="meio">Meio a meio</option>
+                  </select>
+                </div>
+
+                <div class="campo">
+                  <label>Tamanho</label>
+
+                  <div class="tamanhos">
+                    <button
+                      type="button"
+                      class="tamanho-btn active"
+                      id="btnBroto"
+                      onclick="selecionarTamanho('broto')"
+                    >
+                      Broto
+                    </button>
+
+                    <button
+                      type="button"
+                      class="tamanho-btn"
+                      id="btnGrande"
+                      onclick="selecionarTamanho('grande')"
+                    >
+                      Grande
+                    </button>
+                  </div>
+                </div>
+
+                <div id="pizzaInteiraBox" class="campo">
+                  <label>Pizza selecionada</label>
+                  <input
+                    id="pizzaSelecionadaInput"
+                    type="text"
+                    readonly
+                    placeholder="Clique em uma pizza do cardápio"
+                  />
+                </div>
+
+                <div id="meioMeioBox" class="meio-meio-box">
+                  <div class="campo">
+                    <label>Primeiro sabor</label>
+                    <select id="sabor1"></select>
+                  </div>
+
+                  <div class="campo">
+                    <label>Segundo sabor</label>
+                    <select id="sabor2"></select>
+                  </div>
+
+                  <small>No meio a meio, o sistema usa o valor da pizza mais cara.</small>
+                </div>
+
+                <div class="linha">
+                  <div class="campo">
+                    <label>Quantidade</label>
+                    <input id="quantidade" type="number" min="1" value="1" />
+                  </div>
+
+                  <div class="campo">
+                    <label>Forma de pagamento</label>
+                    <select id="pagamento">
+                      <option>Dinheiro</option>
+                      <option>Pix</option>
+                      <option>Débito</option>
+                      <option>Crédito</option>
+                      <option>Voucher</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="campo">
+                  <label>Observação</label>
+                  <textarea
+                    id="observacao"
+                    placeholder="Ex: sem cebola, borda catupiry, ponto da massa..."
+                  ></textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="adicionarAoCarrinho()">
+                  Adicionar pizza ao pedido
+                </button>
+
+                <small>
+                  Para adicionar bebida, clique na aba <strong>Bebidas</strong> e selecione o produto.
+                </small>
+              </div>
+
+              <div class="carrinho" id="carrinho"></div>
+
+              <div class="total">
+                <span>Total</span>
+                <span id="totalPedido">R$ 0,00</span>
+              </div>
+
+              <div class="actions">
+                <button class="btn btn-green" onclick="finalizarPedido()">
+                  Finalizar Pedido
+                </button>
+
+                <button class="btn btn-gray" onclick="limparCarrinho()">
+                  Limpar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section id="app" class="hidden">
-        <header class="app-header card">
-          <h1>PDV Pizzaria Pro</h1>
-          <div>
-            <span id="session-user"></span>
-            <button id="logout" class="secondary">Sair</button>
+      <!-- PEDIDOS -->
+      <section id="pedidos" class="page">
+        <div class="card">
+          <div class="card-title">
+            <h3>Pedidos recentes</h3>
+            <span id="totalPedidosTexto">0 pedidos</span>
           </div>
-        </header>
 
-        <nav class="tabs card">
-          <button class="tab active" data-tab="cash-open">Abertura de Caixa</button>
-          <button class="tab" data-tab="register">Cadastro</button>
-          <button class="tab" data-tab="sales">PDV (Vendas)</button>
-          <button class="tab" data-tab="open-tables">Mesas Abertas</button>
-          <button class="tab" data-tab="history">Histórico de Caixa</button>
-          <button class="tab" data-tab="tutorial">Tutorial</button>
-        </nav>
+          <table>
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Tipo</th>
+                <th>Cliente / Mesa</th>
+                <th>Itens</th>
+                <th>Pagamento</th>
+                <th>Total</th>
+                <th>Status</th>
+              </tr>
+            </thead>
 
-        <section id="cash-open" class="panel card active">
-          <h2>Abertura de Caixa</h2>
-          <form id="open-cash-form" class="grid-form">
-            <label>
-              Valor inicial (R$)
-              <input id="initial-amount" type="number" min="0" step="0.01" required />
-            </label>
-            <label>
-              Data
-              <input id="open-date" type="text" readonly />
-            </label>
-            <label>
-              Hora
-              <input id="open-time" type="text" readonly />
-            </label>
-            <button type="submit">Abrir Caixa</button>
-          </form>
-          <p id="cash-status"></p>
-        </section>
+            <tbody id="tabelaPedidos"></tbody>
+          </table>
+        </div>
+      </section>
 
-        <section id="register" class="panel card">
-          <h2>Cadastro de Produtos</h2>
-          <div class="grid-2">
-            <article>
-              <h3>Pizzas</h3>
-              <form id="pizza-form" class="grid-form inline pizza-register-form">
-                <input id="pizza-name" type="text" placeholder="Nome da pizza" required />
-                <input id="pizza-number" type="number" min="1" placeholder="Número da pizza" required />
-                <input id="pizza-broto-price" type="number" min="0" step="0.01" placeholder="Preço broto" required />
-                <input id="pizza-grande-price" type="number" min="0" step="0.01" placeholder="Preço grande" required />
-                <button type="submit">Adicionar</button>
-              </form>
-              <ul id="pizza-list"></ul>
-            </article>
-            <article>
-              <h3>Adicionais</h3>
-              <form id="extra-form" class="grid-form inline">
-                <input id="extra-name" type="text" placeholder="Nome" required />
-                <input id="extra-whole-price" type="number" min="0" step="0.01" placeholder="Preço inteira" required />
-                <input id="extra-half-price" type="number" min="0" step="0.01" placeholder="Preço meia pizza" required />
-                <button type="submit">Adicionar</button>
-              </form>
-              <ul id="extra-list"></ul>
-            </article>
-            <article>
-              <h3>Bordas</h3>
-              <form id="edge-form" class="grid-form inline">
-                <input id="edge-name" type="text" placeholder="Nome" required />
-                <input id="edge-price" type="number" min="0" step="0.01" placeholder="Preço" required />
-                <button type="submit">Adicionar</button>
-              </form>
-              <ul id="edge-list"></ul>
-            </article>
-            <article>
-              <h3>Bebidas</h3>
-              <form id="drink-form" class="grid-form inline">
-                <input id="drink-name" type="text" placeholder="Nome" required />
-                <select id="drink-type" required>
-                  <option value="Refrigerante">Refrigerante</option>
-                  <option value="Vinho">Vinho</option>
-                  <option value="Cerveja">Cerveja</option>
-                </select>
-                <input id="drink-price" type="number" min="0" step="0.01" placeholder="Preço" required />
-                <button type="submit">Adicionar</button>
-              </form>
-              <ul id="drink-list"></ul>
-            </article>
-            <article>
-              <h3>Migração SQLite</h3>
-              <p class="hint">Importe um arquivo <strong>.db/.sqlite</strong> (SQLite format 3) para migrar produtos e vendas.</p>
-              <form id="sqlite-import-form" class="grid-form">
-                <input id="sqlite-file" type="file" accept=".db,.sqlite,.sqlite3,application/x-sqlite3" required />
-                <label class="checkbox-label">
-                  <input id="sqlite-replace-data" type="checkbox" checked />
-                  Substituir dados atuais antes de importar
-                </label>
-                <button type="submit">Importar banco SQLite</button>
-              </form>
-              <p id="sqlite-import-status" class="hint"></p>
-            </article>
+      <!-- CARDÁPIO -->
+      <section id="cardapio" class="page">
+        <div class="card">
+          <div class="card-title">
+            <h3>Cadastro de Pizza</h3>
+            <span>Broto e Grande</span>
           </div>
-        </section>
 
-        <section id="sales" class="panel card">
-          <h2>PDV (Vendas)</h2>
-          <header class="sales-operational-header">
-            <strong>Módulo PDV Operacional</strong>
-            <nav class="sales-shortcuts-nav" aria-label="Atalhos visuais do PDV">
-              <span>F2 Vendas</span>
-              <span>Alt+1 Pizza</span>
-              <span>Alt+2 Bebida</span>
-              <span>Alt+S Meio a meio</span>
-              <span>Ctrl+Enter Add Item</span>
-            </nav>
-          </header>
-          <div class="pdv-layout">
-            <article class="pdv-menu card">
-              <h3>Catálogo de sabores</h3>
-              <input id="catalog-search" type="text" placeholder="Buscar por nº ou nome da pizza" />
-              <button id="catalog-half-trigger" type="button">Pizza meio a meio</button>
-              <div id="pizza-catalog-grid" class="pizza-catalog-grid"></div>
+          <div class="form-grid">
+            <div class="campo">
+              <label>Número da pizza</label>
+              <input id="cadNumero" type="number" placeholder="Ex: 1" />
+            </div>
 
-              <section id="half-composition-panel" class="half-composition card hidden">
-                <h4>Pizza meio a meio</h4>
-                <form id="half-flavor-form" class="grid-form">
-                  <label>
-                    1º sabor
-                    <select id="half-flavor-one" required></select>
-                  </label>
-                  <label>
-                    2º sabor
-                    <select id="half-flavor-two" required></select>
-                  </label>
-                  <label>
-                    Tamanho
-                    <select id="half-flavor-size" required>
-                      <option value="broto">Broto</option>
-                      <option value="grande">Grande</option>
-                    </select>
-                  </label>
-                  <label>
-                    Borda
-                    <select id="half-flavor-edge" required></select>
-                  </label>
-                  <label>
-                    Adicional (pizza inteira)
-                    <select id="half-extra-whole">
-                      <option value="">Sem adicional</option>
-                    </select>
-                  </label>
-                  <label>
-                    Adicional (meia pizza)
-                    <select id="half-extra-half">
-                      <option value="">Sem adicional</option>
-                    </select>
-                  </label>
-                  <label>
-                    Observação
-                    <textarea id="half-flavor-note" rows="3" placeholder="Observações da composição"></textarea>
-                  </label>
-                  <div class="row">
-                    <button type="submit">Adicionar composição</button>
-                    <button id="half-flavor-cancel" type="button" class="secondary">Cancelar composição</button>
-                  </div>
-                </form>
-              </section>
-            </article>
-            <article class="pdv-order card">
-              <form id="sale-form" class="grid-form">
-                <section class="sales-card">
-                  <h3>Dados do cliente</h3>
-                  <label>
-                    Tipo de pedido
-                    <select id="sale-type" required>
-                      <option value="Delivery">Delivery</option>
-                      <option value="Balcão">Balcão</option>
-                      <option value="Mesa">Mesa</option>
-                    </select>
-                  </label>
-                  <div class="sale-customer-grid">
-                    <label id="customer-name-wrap">Nome do cliente <input id="customer-name" type="text" /></label>
-                    <label id="phone-wrap">Telefone <input id="customer-phone" type="text" /></label>
-                    <label id="address-wrap">Endereço <input id="customer-address" type="text" /></label>
-                    <label id="table-wrap" class="hidden">Número da mesa <input id="table-number" type="number" min="1" /></label>
-                  </div>
-                </section>
+            <div class="campo">
+              <label>Nome da pizza</label>
+              <input id="cadNome" type="text" placeholder="Ex: Mussarela" />
+            </div>
 
-                <section class="sales-card">
-                  <h3>Itens do pedido</h3>
-                  <div class="row sales-item-row">
-                    <select id="product-type">
-                      <option value="pizza">Pizza</option>
-                      <option value="drink">Bebida</option>
-                    </select>
-                    <select id="product-id"></select>
-                    <div id="two-flavors-wrap">
-                      <input id="two-flavors" type="checkbox" />
-                      <span>Pizza 2 sabores</span>
-                    </div>
-                    <select id="pizza-order-size">
-                      <option value="broto">Broto</option>
-                      <option value="grande">Grande</option>
-                    </select>
-                    <select id="sale-edge"></select>
-                    <select id="sale-extra"></select>
-                    <input id="product-qty" type="number" min="1" value="1" />
-                    <button id="add-item" type="button">Adicionar</button>
-                  </div>
-                  <ul id="order-items"></ul>
-                </section>
+            <div class="campo">
+              <label>Preço Broto</label>
+              <input id="cadBroto" type="number" step="0.01" placeholder="Ex: 35.00" />
+            </div>
 
-                <section class="sales-card">
-                  <h3>Resumo financeiro</h3>
-                  <div class="finance-grid">
-                    <label>Subtotal <input id="order-subtotal" type="text" value="R$ 0,00" readonly /></label>
-                    <label>Taxa (R$) <input id="order-fee" type="number" min="0" step="0.01" value="0" /></label>
-                    <label>Desconto (R$) <input id="order-discount" type="number" min="0" step="0.01" value="0" /></label>
-                    <label>Total <input id="order-total-display" type="text" value="R$ 0,00" readonly /></label>
-                  </div>
-                  <p>Total geral: <strong id="order-total">R$ 0,00</strong></p>
-                </section>
+            <div class="campo">
+              <label>Preço Grande</label>
+              <input id="cadGrande" type="number" step="0.01" placeholder="Ex: 55.00" />
+            </div>
 
-                <section class="sales-card">
-                  <h3>Ações finais</h3>
-                  <label>
-                    Forma de pagamento
-                    <select id="payment-method" required>
-                      <option value="Dinheiro">Dinheiro</option>
-                      <option value="Cartão">Cartão</option>
-                      <option value="Pix">Pix</option>
-                    </select>
-                  </label>
-                  <div class="row">
-                    <button type="submit">Finalizar</button>
-                    <button id="action-payment" type="button" class="secondary">Pagamento</button>
-                    <button id="cancel-order" type="button" class="danger">Cancelar</button>
-                  </div>
-                </section>
-              </form>
-            </article>
+            <div class="campo full">
+              <label>Descrição / ingredientes</label>
+              <textarea
+                id="cadDescricao"
+                placeholder="Ex: mussarela, tomate, orégano e azeitona"
+              ></textarea>
+            </div>
           </div>
-        </section>
 
-        <section id="open-tables" class="panel card">
-          <h2>Mesas Abertas</h2>
-          <p class="hint">Confira os itens adicionados e feche a mesa quando o cliente finalizar.</p>
-          <div id="open-tables-list" class="tables-grid"></div>
-        </section>
+          <div class="actions">
+            <button class="btn btn-primary" onclick="cadastrarPizza()">Cadastrar Pizza</button>
+            <button class="btn btn-gray" onclick="limparFormularioCadastro()">Limpar Formulário</button>
+          </div>
+        </div>
 
-        <section id="history" class="panel card">
-          <h2>Histórico de Caixa</h2>
-          <div id="history-summary"></div>
-          <button id="close-cash">Fechar Caixa</button>
-          <ul id="sales-history"></ul>
-        </section>
+        <br />
 
-        <section id="tutorial" class="panel card">
-          <h2>Tutorial de Atalhos</h2>
-          <p class="hint">Use estes atalhos para navegar e preencher pedidos mais rápido no PDV.</p>
-          <ul id="shortcut-list"></ul>
-        </section>
+        <div class="card">
+          <div class="card-title">
+            <h3>Cardápio de Pizzas</h3>
+            <span id="qtdPizzasTexto">0 pizzas</span>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Número</th>
+                <th>Pizza</th>
+                <th>Broto</th>
+                <th>Grande</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+
+            <tbody id="tabelaCardapio"></tbody>
+          </table>
+        </div>
+
+        <br />
+
+        <!-- CADASTRO DE BEBIDAS -->
+        <div class="card">
+          <div class="card-title">
+            <h3>Cadastro de Bebida</h3>
+            <span>Água, refrigerante, suco...</span>
+          </div>
+
+          <div class="form-grid">
+            <div class="campo">
+              <label>Código da bebida</label>
+              <input id="bebCodigo" type="number" placeholder="Ex: 101" />
+            </div>
+
+            <div class="campo">
+              <label>Nome da bebida</label>
+              <input id="bebNome" type="text" placeholder="Ex: Coca-Cola lata" />
+            </div>
+
+            <div class="campo">
+              <label>Preço</label>
+              <input id="bebPreco" type="number" step="0.01" placeholder="Ex: 7.00" />
+            </div>
+
+            <div class="campo">
+              <label>Categoria</label>
+              <input id="bebCategoria" type="text" placeholder="Ex: Refrigerante" />
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary" onclick="cadastrarBebida()">
+              Cadastrar Bebida
+            </button>
+
+            <button class="btn btn-gray" onclick="limparFormularioBebida()">
+              Limpar
+            </button>
+          </div>
+        </div>
+
+        <br />
+
+        <!-- LISTA DE BEBIDAS -->
+        <div class="card">
+          <div class="card-title">
+            <h3>Bebidas cadastradas</h3>
+            <span id="qtdBebidasTexto">0 bebidas</span>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Bebida</th>
+                <th>Categoria</th>
+                <th>Preço</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+
+            <tbody id="tabelaBebidas"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- RELATÓRIO -->
+      <section id="relatorio" class="page">
+        <div class="resumo-grid">
+          <div class="resumo-card">
+            <span>Vendas</span>
+            <h3 id="relVendas">0</h3>
+          </div>
+
+          <div class="resumo-card">
+            <span>Faturamento</span>
+            <h3 id="relFaturamento">R$ 0,00</h3>
+          </div>
+
+          <div class="resumo-card">
+            <span>Ticket médio</span>
+            <h3 id="relTicket">R$ 0,00</h3>
+          </div>
+
+          <div class="resumo-card">
+            <span>Itens vendidos</span>
+            <h3 id="relItens">0</h3>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <h3>Resumo de vendas</h3>
+            <span>Histórico local</span>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Pedido</th>
+                <th>Tipo</th>
+                <th>Pagamento</th>
+                <th>Total</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody id="tabelaRelatorio"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CONFIGURAÇÕES -->
+      <section id="config" class="page">
+        <div class="card">
+          <div class="card-title">
+            <h3>Configurações</h3>
+            <span>Sistema</span>
+          </div>
+
+          <div class="form-grid">
+            <div class="campo">
+              <label>Nome da pizzaria</label>
+              <input id="nomePizzaria" value="Barra Funda Pizza e Vinho" />
+            </div>
+
+            <div class="campo">
+              <label>Telefone</label>
+              <input id="telefonePizzaria" placeholder="(11) 99999-9999" />
+            </div>
+
+            <div class="campo full">
+              <label>Endereço</label>
+              <input id="enderecoPizzaria" placeholder="Rua, número, bairro..." />
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary" onclick="salvarConfig()">
+              Salvar Configurações
+            </button>
+
+            <button class="btn btn-dark" onclick="abrirCaixa()">
+              Abrir Caixa
+            </button>
+
+            <button class="btn btn-gray" onclick="fecharCaixa()">
+              Fechar Caixa
+            </button>
+          </div>
+        </div>
       </section>
     </main>
+  </div>
 
-    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.min.js"></script>
-    <script src="script.js"></script>
-  </body>
+  <script src="script.js"></script>
+</body>
 </html>
